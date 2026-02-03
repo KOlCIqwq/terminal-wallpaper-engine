@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="style.css">
+    <title>Terminal Wallpaper</title>
+</head>
+<body>
+    <div class="container">
+<pre>
+LLLLLLLLLLLL   TEst
+LLLLLLLLLLLL   -----------
+LLLLLLLLLLLL   OS: <span id="os">Windows 11</span>
+LLLLLLLLLLLL   CPU: <span id="cpu">Loading...</span>
+LLLLLLLLLLLL   GPU: <span id="gpu">Loading...</span>
+LLLLLLLLLLLL   RAM: <span id="ram">Loading...</span>
+</pre>
+        </div>
+
+        <div class="clock-section">
+            <div id="clock">00:00:00</div>
+            <div id="date">YYYY-MM-DD</div>
+        </div>
+
+        <div class="media-container">
+            <img id="album-art" src="" style="display:none;">
+            <div class="media-text">
+                <div>Artist: <span id="artist">Idle</span></div>
+                <div>Title:  <span id="title">Waiting for media...</span></div>
+                <div>Album:  <span id="album">-</span></div>
+            </div>
+        </div>
+
+        <div class="visualizer">
+            Volume: [<span id="bar-volume">..........</span>] [<span id="volume-perc">0%</span>] <br>
+            Bass:   [<span id="bar-bass">..........</span>] [<span id="bass-perc">0%</span>] <br>
+            Mid:    [<span id="bar-mid">..........</span>] [<span id="mid-perc">0%</span>] <br>
+            Treble: [<span id="bar-treble">..........</span>] [<span id="treble-perc">0%</span>] <br>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+body {
+    background-color: #0d0d0d;
+    color: #cccccc;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 16px;
+    margin: 40px;
+    overflow: hidden;
+}
+
+pre {
+    font-family: inherit;
+    color: #3b8eea;
+    margin: 0;
+}
+
+span {
+    color: #d1d1d1;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+#album-art {
+    width: 60px;
+    height: 60px;
+    margin-right: 15px;
+    border: 1px solid #555;
+}
+
+.media-container {
+    display: flex;
+    align-items: center;
+    border-top: 1px dashed #555;
+    padding-top: 20px;
+}
+
+.visualizer span {
+    color: #e5c07b;
+}
