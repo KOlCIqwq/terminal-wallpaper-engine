@@ -7,6 +7,7 @@ import psutil
 import wmi
 import pythoncom
 import threading
+import gpustat
 
 if sys.stdout is None:
     sys.stdout = open(os.devnull, 'w')
@@ -19,9 +20,13 @@ system_state = {
     "cpu_name": "Loading...",
     "gpu_name": "Loading...",
     "ram_total": "Loading...",
+    "disk_total":"Loading...",
     "cpu_percent": 0,
+    "gpu_percent": 0,
     "ram_percent": 0,
-    "ram_used": 0
+    "ram_used": 0,
+    "disk_percent": 0,
+    "disk_used": 0,
 }
 
 PORT = 25555
@@ -56,27 +61,38 @@ def get_static():
     except:
         gpu_info = "Error retrieving GPU"
         
+    disk = round(psutil.disk_usage('/').total / (1024.0 ** 3), 1)
+    disk_total = f"{disk} GB"
+        
     ram_gb = round(psutil.virtual_memory().total / (1024.0 ** 3), 1)
     ram_info = f"{ram_gb} GB"
         
     system_state['os'] = os_info
     system_state['cpu_name'] = cpu_name
     system_state['gpu_name'] = gpu_info
+    system_state['disk_total'] = disk_total
     system_state['ram_total'] = ram_info
-    
-    print(system_state)
 
 def monitor():
     global system_state
     while True:
         cpu = psutil.cpu_percent(interval = 1) # blocks for 1 sec
+        gpu_stats = gpustat.GPUStatCollection.new_query()
+        for gpu in gpu_stats.gpus:
+            # Later adapt to multiple gpu
+            gpu_per = gpu.utilization 
         mem = psutil.virtual_memory()
         ram_p = mem.percent
         ram_u = round(mem.used / (1024.0 ** 3) , 1)
+        disk_per = psutil.disk_usage('/').percent
+        disk_usage = f"{round(psutil.disk_usage('/').used / (1024.0 ** 3), 1)} GB"
         
         system_state['cpu_percent'] = cpu
+        system_state['gpu_percent'] = gpu_per
         system_state['ram_percent'] = ram_p
         system_state['ram_used'] = ram_u
+        system_state['disk_percent'] = disk_per
+        system_state['disk_used'] = disk_usage
         
         print(system_state)
         

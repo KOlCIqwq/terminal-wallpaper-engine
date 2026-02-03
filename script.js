@@ -16,11 +16,12 @@ function fetchSystemSpecs() {
             if (data.os) document.getElementById('os').textContent = data.os;
             
             if (data.cpu_name) {
-                 document.getElementById('cpu').textContent = data.cpu_name;
+                document.getElementById('cpu').textContent = data.cpu_name;
             }
             if (data.gpu_name) {
-                 document.getElementById('gpu').textContent = data.gpu_name;
+                document.getElementById('gpu').textContent = data.gpu_name;
             }
+            
 
             // Dynamic Info
             if (data.cpu_percent !== undefined) {
@@ -28,10 +29,21 @@ function fetchSystemSpecs() {
                 document.getElementById('cpu-bar').textContent = bar;
             }
 
+            if (data.gpu_percent !== undefined) {
+                const bar = generateAsciiBar(data.gpu_percent);
+                document.getElementById('gpu-bar').textContent = bar;
+            }
+
             if (data.ram_total && data.ram_percent !== undefined) {
                 document.getElementById('ram').textContent = data.ram_total;
                 const bar = generateAsciiBar(data.ram_percent);
                 document.getElementById('ram-bar').textContent = `${bar} (${data.ram_used} GB)`;
+            }
+            
+            if (data.disk_total && data.disk_used !== undefined) {
+                document.getElementById('disk').textContent = data.disk_total;
+                const bar = generateAsciiBar(data.disk_percent);
+                document.getElementById('disk-bar').textContent = `${bar} (${data.disk_used} / ${data.disk_total})`;
             }
 
             // KeepAlive
