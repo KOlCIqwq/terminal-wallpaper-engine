@@ -1,20 +1,43 @@
+function generateAsciiBar(percent, length = 20) {
+    const filledLen = Math.round((percent / 100) * length);
+    const emptyLen = length - filledLen;
+    // Creates: [||||||......]
+    return '[' + '|'.repeat(filledLen) + '.'.repeat(emptyLen) + '] ' + percent.toFixed(1) + '%';
+}
+
 function fetchSystemSpecs() {
-    // Connect to the Python local server
     fetch('http://127.0.0.1:25555/specs')
         .then(response => {
-            if (!response.ok) throw new Error("Server not reachable");
+            if (!response.ok) throw new Error("Server down");
             return response.json();
         })
         .then(data => {
-            // Update the HTML elements
-            if(data.os) document.getElementById('os').textContent = data.os;
-            if(data.cpu) document.getElementById('cpu').textContent = data.cpu;
-            if(data.gpu) document.getElementById('gpu').textContent = data.gpu;
-            if(data.ram) document.getElementById('ram').textContent = data.ram;
+            // Static Info
+            if (data.os) document.getElementById('os').textContent = data.os;
+            
+            if (data.cpu_name) {
+                 document.getElementById('cpu').textContent = data.cpu_name;
+            }
+            if (data.gpu_name) {
+                 document.getElementById('gpu').textContent = data.gpu_name;
+            }
+
+            // Dynamic Info
+            if (data.cpu_percent !== undefined) {
+                const bar = generateAsciiBar(data.cpu_percent);
+                document.getElementById('cpu-bar').textContent = bar;
+            }
+
+            if (data.ram_total && data.ram_percent !== undefined) {
+                document.getElementById('ram').textContent = data.ram_total;
+                const bar = generateAsciiBar(data.ram_percent);
+                document.getElementById('ram-bar').textContent = `${bar} (${data.ram_used} GB)`;
+            }
+
+            // KeepAlive
+            setTimeout(fetchSystemSpecs, 1000);
         })
         .catch(err => {
-            console.log("Waiting for hardware host script...", err);
-            // Retry in 5 seconds if failed (e.g. wallpaper started before exe)
             setTimeout(fetchSystemSpecs, 5000);
         });
 }
