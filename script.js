@@ -1,3 +1,21 @@
+const CACHE_KEY = "specs"
+
+function loadCachedSpecs(){
+    const cached = localStorage.getItem(CACHE_KEY)
+    if (cached){
+        try{
+            const data = JSON.parse(cached);
+            if (data.os) document.getElementById('os').textContent = data.os;
+            if (data.cpu_name) document.getElementById('cpu').textContent = data.cpu_name;
+            if (data.gpu_name) document.getElementById('gpu').textContent = data.gpu_name;
+            if (data.ram_total) document.getElementById('ram').textContent = data.ram_total;
+            if (data.disk_total) document.getElementById('disk').textContent = data.disk_total;
+        } catch (e) {
+            localStorage.removeItem(CACHE_KEY);
+        }
+    }
+}
+
 function generateAsciiBar(percent, length = 20) {
     const filledLen = Math.round((percent / 100) * length);
     const emptyLen = length - filledLen;
@@ -15,13 +33,15 @@ function fetchSystemSpecs() {
             // Static Info
             if (data.os) document.getElementById('os').textContent = data.os;
             
-            if (data.cpu_name) {
+            if (data.cpu_name && !overrides.cpu) {
                 document.getElementById('cpu').textContent = data.cpu_name;
             }
-            if (data.gpu_name) {
+            if (data.gpu_name && !overrides.gpu) {
                 document.getElementById('gpu').textContent = data.gpu_name;
             }
-            
+            if (data.ram_total && data.ram_percent !== undefined && !overrides.ram) {
+                document.getElementById('ram').textContent = data.ram_total;
+            }
 
             // Dynamic Info
             if (data.cpu_percent !== undefined) {
@@ -46,6 +66,16 @@ function fetchSystemSpecs() {
                 document.getElementById('disk-bar').textContent = `${bar} (${data.disk_used} / ${data.disk_total})`;
             }
 
+            const dataToSave = {
+                os: data.os,
+                cpu_name: data.cpu_name,
+                gpu_name: data.gpu_name,
+                ram_total: data.ram_total,
+                disk_total: data.disk_total
+            };
+
+            localStorage.setItem(CACHE_KEY, JSON.stringify(dataToSave));
+
             // KeepAlive
             setTimeout(fetchSystemSpecs, 1000);
         })
@@ -53,19 +83,42 @@ function fetchSystemSpecs() {
             setTimeout(fetchSystemSpecs, 5000);
         });
 }
+
+// Show cached first
+loadCachedSpecs();
 // Trigger the fetch when wallpaper loads
 fetchSystemSpecs();
+
+const overrides = {
+    cpu: false,
+    gpu: false,
+    ram: false
+};
 
 window.wallpaperPropertyListener = {
     applyUserProperties: function(properties) {
         if (properties.custom_cpu) {
-            document.getElementById('cpu').textContent = properties.custom_cpu.value;
+            const value = properties.custom_cpu.value.trim();
+            overrides.cpu = value !== "";
+            if (overrides.cpu) {
+                document.getElementById('cpu').textContent = value;
+            }
         }
+
         if (properties.custom_gpu) {
-            document.getElementById('gpu').textContent = properties.custom_gpu.value;
+            const value = properties.custom_gpu.value.trim();
+            overrides.gpu = value !== "";
+            if (overrides.gpu) {
+                document.getElementById('gpu').textContent = value;
+            }
         }
+
         if (properties.custom_ram) {
-            document.getElementById('ram').textContent = properties.custom_ram.value;
+            const value = properties.custom_ram.value.trim();
+            overrides.ram = value !== "";
+            if (overrides.ram) {
+                document.getElementById('ram').textContent = value;
+            }
         }
     }
 };
