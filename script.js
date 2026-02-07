@@ -23,6 +23,13 @@ function generateAsciiBar(percent, length = 20) {
     return '[' + '|'.repeat(filledLen) + '.'.repeat(emptyLen) + '] ' + percent.toFixed(1) + '%';
 }
 
+function formatTime(seconds){
+    if (!seconds || seconds <= 0) return "--:--";
+    const m = Math.floor(seconds/60);
+    const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+}
+
 function fetchSystemSpecs() {
     fetch('http://127.0.0.1:25555/specs')
         .then(response => {
@@ -65,6 +72,20 @@ function fetchSystemSpecs() {
                 const bar = generateAsciiBar(data.disk_percent);
                 document.getElementById('disk-bar').textContent = `${bar} (${data.disk_used} / ${data.disk_total})`;
             }
+
+            // Process current duration
+            const currentTrack = {
+                title: data.media_title,
+                artist: data.media_artist,
+                status: data.media_status,
+                position: data.media_position,
+                duration: data.media_duration
+            }
+
+            let cur_position = formatTime(data.media_position)
+            let cur_duration = formatTime(data.media_duration)
+
+            document.getElementById('duration').textContent = `${cur_position} / ${cur_duration}`;
 
             const dataToSave = {
                 os: data.os,
@@ -123,21 +144,6 @@ window.wallpaperPropertyListener = {
     }
 };
 
-function formatTime(seconds){
-    if (!seconds || seconds <= 0) return "--:--";
-    const m = Math.floor(seconds/60);
-    const s = Math.floor(seconds % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-}
-
-const playback = {
-    position: 0,
-    duration: 0,
-    startTime: 0,
-    playing: false,
-    timer: null
-};
-
 const track_info = {
     title: '',
     artist: '',
@@ -151,10 +157,6 @@ window.wallpaperRegisterMediaPropertiesListener((event) => {
     if (track_info.title === event.title && track_info.artist === event.artist) {
         return; 
     }
-
-    playback.position = 0;
-    playback.duration = event.duration || 0;
-    playback.startTime = Date.now();
 
     track_info.title = event.title;
     track_info.artist = event.artist;
@@ -175,7 +177,6 @@ window.wallpaperRegisterMediaThumbnailListener((event) => {
 });
 
 window.wallpaperRegisterMediaPlaybackListener((event) => {
-    console.log(1)
     if (event.state === window.wallpaperMediaIntegration.PLAYBACK_PLAYING) {
         playback.playing = true;
         playback.startTime = Date.now() - playback.position * 1000;
@@ -206,31 +207,6 @@ window.wallpaperRegisterMediaTimelineListener(event => {
         updateDuration();
     }
 });
-
-function startTimer(){
-    if (playback.timer) return;
-
-    playback.timer = setInterval(() => {
-        if (!playback.playing) return;
-
-        playback.position = (Date.now() - playback.startTime) / 1000;
-        
-        updateDuration();
-    }, 1000);
-}
-
-function stopTimer(){
-    clearInterval(playback.timer);
-    playback.timer = null;
-}
-
-function updateDuration(){
-
-    const pos = formatTime(Math.floor(playback.position));
-    const dur = formatTime(Math.floor(playback.duration)) ? formatTime(playback.duration) : "--:--";
-
-    document.getElementById('duration').textContent = `${pos} / ${dur}`;
-}
 
 window.wallpaperRegisterAudioListener((audioArray) => {
     let totalSum = 0;
