@@ -7,6 +7,8 @@ function parseLRC(lrcString) {
     
     const timeReg = /\[(\d{2}):(\d{2}\.\d{2,})\]/;
 
+    result.push({ time: 0, text: ' '})
+
     lines.forEach(line => {
         const match = timeReg.exec(line);
         if (match) {

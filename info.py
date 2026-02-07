@@ -146,7 +146,7 @@ def monitor():
     startup = True
     
     while True:
-        cpu = psutil.cpu_percent(interval = 0.8) # blocks for 1 sec
+        cpu = psutil.cpu_percent(interval = 0.55)
         gpu_stats = gpustat.GPUStatCollection.new_query()
         for gpu in gpu_stats.gpus:
             # Later adapt to multiple gpu
