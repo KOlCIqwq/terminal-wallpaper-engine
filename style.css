@@ -45,3 +45,54 @@ span {
   display: inline-block;
   width: 80px;
 }
+
+.terminal-box {
+    margin-top: 20px;
+    border: 1px solid #333;
+    background: rgba(0, 0, 0, 0.8);
+    font-family: 'Courier New', monospace;
+    width: 100%;
+    max-width: 600px;
+}
+
+.terminal-box .header {
+    background: #333;
+    color: #000;
+    padding: 2px 5px;
+    font-weight: bold;
+    font-size: 0.8rem;
+}
+
+.lyrics-content {
+    height: 150px;
+    overflow-y: auto; 
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;  /* IE 10+ */
+    
+    padding: 10px;
+    font-size: 0.9rem;
+    color: #4af626;
+    
+    display: block; 
+    position: relative;
+    
+    mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+}
+
+.lyric-line {
+    padding: 2px 0;
+    white-space: pre-wrap;
+    opacity: 0.3; /* Dim inactive lines */
+    transition: all 0.2s;
+}
+
+.lyric-line.active {
+    opacity: 1;
+    font-weight: bold;
+    text-shadow: 0 0 5px #4af626;
+}
+
+.lyric-line.active::before {
+    content: "> ";
+}

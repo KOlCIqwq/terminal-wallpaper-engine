@@ -74,12 +74,16 @@ function fetchSystemSpecs() {
             }
 
             // Process current duration
-            const currentTrack = {
-                title: data.media_title,
-                artist: data.media_artist,
-                status: data.media_status,
-                position: data.media_position,
-                duration: data.media_duration
+            const trackSignature = `${data.media_artist} - ${data.media_title}`;
+            
+            if (trackSignature !== currentTrackHash && data.media_status === 'Playing') {
+                currentTrackHash = trackSignature;
+                getLyrics(data.media_title, data.media_artist);
+            }
+
+            if (data.media_position) {
+                // Ensure position is a number (seconds)
+                syncLyrics(parseFloat(data.media_position));
             }
 
             let cur_position = formatTime(data.media_position)
@@ -160,9 +164,6 @@ window.wallpaperRegisterMediaPropertiesListener((event) => {
 
     track_info.title = event.title;
     track_info.artist = event.artist;
-
-    updateDuration();
-    getLyrics(track_info.title, track_info.artist)
 });
 
 // Thumbnail
@@ -173,38 +174,6 @@ window.wallpaperRegisterMediaThumbnailListener((event) => {
         img.style.display = 'block';
     } else {
         img.style.display = 'none';
-    }
-});
-
-window.wallpaperRegisterMediaPlaybackListener((event) => {
-    if (event.state === window.wallpaperMediaIntegration.PLAYBACK_PLAYING) {
-        playback.playing = true;
-        playback.startTime = Date.now() - playback.position * 1000;
-        startTimer();
-    }
-    else {
-        playback.playing = false;
-        stopTimer();
-    }
-
-    if (event.state === window.wallpaperMediaIntegration.PLAYBACK_STOPPED) {
-        document.getElementById('title').textContent = "Idle";
-        document.getElementById('artist').textContent = "-";
-        document.getElementById('album').textContent = "-";
-        document.getElementById('duration').textContent = "-";
-        document.getElementById('album-art').style.display = 'none';
-
-        playback.position = 0;
-        playback.duration = 0;
-    }
-});
-
-window.wallpaperRegisterMediaTimelineListener(event => {
-    if (event.position !== undefined) {
-        playback.position = event.position;
-        playback.duration = event.duration || playback.duration;
-        playback.startTime = Date.now() - playback.position * 1000;
-        updateDuration();
     }
 });
 

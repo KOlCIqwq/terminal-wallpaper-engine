@@ -11,6 +11,7 @@ import gpustat
 import asyncio
 import datetime
 import time
+import random
 
 try:
     from winsdk.windows.media.control import GlobalSystemMediaTransportControlsSessionManager
@@ -145,7 +146,7 @@ def monitor():
     startup = True
     
     while True:
-        cpu = psutil.cpu_percent(interval = 1) # blocks for 1 sec
+        cpu = psutil.cpu_percent(interval = 0.8) # blocks for 1 sec
         gpu_stats = gpustat.GPUStatCollection.new_query()
         for gpu in gpu_stats.gpus:
             # Later adapt to multiple gpu
@@ -188,7 +189,7 @@ def monitor():
         # Track change
         if title != last_track_title:
             last_track_title = title
-            cur_pos = 0
+            cur_pos = 1
             reset = True
         # Paused
         elif status == 'Paused':
