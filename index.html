@@ -6,51 +6,91 @@
     <title>Terminal Wallpaper</title>
 </head>
 <body>
-    <div class="container">
-<pre>
-<span class="logo">llllllllllllll</span>   <span class="user">SYSTEM MONITOR</span>
-<span class="logo">llllllllllllll</span>   ------------------------
-<span class="logo">llllllllllllll</span>   OS:   <span id="os">Detecting...</span>
-<span class="logo">llllllllllllll</span>   CPU:  <span id="cpu">Loading...</span>
-<span class="logo">llllllllllllll</span>         <span id="cpu-bar" class="bar"></span>
-<span class="logo">llllllllllllll</span>   RAM:  <span id="ram">Loading...</span>
-<span class="logo">llllllllllllll</span>         <span id="ram-bar" class="bar"></span>
-<span class="logo">llllllllllllll</span>   GPU:  <span id="gpu">Loading...</span>
-<span class="logo">llllllllllllll</span>         <span id="gpu-bar" class="bar"></span>
-<span class="logo">llllllllllllll</span>   Disk: <span id="disk">Loading...</span>
-<span class="logo">llllllllllllll</span>         <span id="disk-bar" class="bar"></span>
-</pre>
+    <div class="terminal-container">
+        
+        <div class="sys-block">
+            <div class="logo-col blue">
+                <div>llllllllllllll</div>
+                <div>llllllllllllll</div>
+                <div>llllllllllllll</div>
+                <div>llllllllllllll</div>
+                <div>llllllllllllll</div>
+                <div>llllllllllllll</div>
+                <div>llllllllllllll</div>
+                <div>llllllllllllll</div>
+                <div>llllllllllllll</div>
+                <div>llllllllllllll</div>
+                <div>llllllllllllll</div>
+            </div>
+            <div class="info-col">
+                <div class="white">user@SYSTEM</div>
+                <div class="gray">------------------------</div>
+                <div class="line"><span class="blue label">OS:</span><span id="os" class="white">Detecting...</span></div>
+                <div class="line"><span class="blue label">CPU:</span><span id="cpu" class="white">Loading...</span></div>
+                <div class="line"><span class="label"></span><span id="cpu-bar" class="white"></span></div>
+                <div class="line"><span class="blue label">RAM:</span><span id="ram" class="white">Loading...</span></div>
+                <div class="line"><span class="label"></span><span id="ram-bar" class="white"></span></div>
+                <div class="line"><span class="blue label">GPU:</span><span id="gpu" class="white">Loading...</span></div>
+                <div class="line"><span class="label"></span><span id="gpu-bar" class="white"></span></div>
+                <div class="line"><span class="blue label">Disk:</span><span id="disk" class="white">Loading...</span></div>
+                <div class="line"><span class="label"></span><span id="disk-bar" class="white"></span></div>
+            </div>
         </div>
 
-        <div class="clock-section">
-            <div id="clock">00:00:00</div>
-            <div id="date">YYYY-MM-DD</div>
+        <div class="spacer"></div>
+        <div class="clock-row">
+            <span class="yellow">Clock 0</span>
+            <span class="white">&nbsp;&nbsp;[LOCAL] Today&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span id="date">YYYY-MM-DD</span> | <span id="clock">00:00:00</span></span>
+        </div>
+        
+        <div class="gray divider">--------------------------------------------------------------------------------</div>
+
+        <div class="vis-block">
+            <div class="line"><span class="white vis-label">Bass:</span><span class="yellow">[<span id="bar-bass">..........</span>] <span id="bass-perc">0%</span></span></div>
+            <div class="line"><span class="white vis-label">Mid:</span><span class="yellow">[<span id="bar-mid">..........</span>] <span id="mid-perc">0%</span></span></div>
+            <div class="line"><span class="white vis-label">Treble:</span><span class="yellow">[<span id="bar-treble">..........</span>] <span id="treble-perc">0%</span></span></div>
+            <div class="line"><span class="white vis-label">Volume:</span><span class="yellow">[<span id="bar-volume">..........</span>] <span id="volume-perc">0%</span></span></div>
         </div>
 
-        <div class="media-container">
+        <div class="gray divider">--------------------------------------------------------------------------------</div>
+        
+        <div class="media-table">
+            <div class="media-header white">
+                <div class="col">Artist</div>
+                <div class="col">Title</div>
+                <div class="col">Album</div>
+            </div>
+            <div class="gray divider">--------------------------------------------------------------------------------</div>
+            <div class="media-row white">
+                <div class="col" id="artist">Idle</div>
+                <div class="col" id="title">Waiting for media...</div>
+                <div class="col" id="album">-</div>
+            </div>
+        </div>
+        
+        <div class="gray double-divider">================================================================================</div>
+        <div class="playing-row white">
+            <span id="playing-bar" class="playing-line">Playing: --------------------------------------------------------</span>
+            <span id="duration">[ - / - ]</span>
+        </div>
+
+        <div class="ascii-wrapper">
             <img id="album-art" src="" style="display:none;">
-            <div class="media-text">
-                <div>Artist: <span id="artist">Idle</span></div>
-                <div>Title:  <span id="title">Waiting for media...</span></div>
-                <div>Album:  <span id="album">-</span></div>
-                <div>Duration:  <span id="duration">-</span></div>
-            </div>
+            <canvas id="canvas" style="display: none;"></canvas>
+            <pre id="asciiOutput"></pre>
         </div>
 
-        <div class="terminal-box">
-            <div class="header">LYRICS_MODULE.EXE</div>
-            <div id="lyrics-container" class="lyrics-content">
-                <span class="dim">Waiting for input stream...</span>
-            </div>
+        <div class="spacer"></div>
+        <div class="gray">LYRICS_MODULE.EXE</div>
+        <div class="gray divider">--------------------------------------------------------------------------------</div>
+        
+        <div id="lyrics-container" class="lyrics-content">
+            <span class="dim">Waiting for input stream...</span>
         </div>
 
-        <div class="visualizer">
-            <span class="label">Volume:</span> [<span id="bar-volume">..........</span>] [<span id="volume-perc">0%</span>]<br>
-            <span class="label">Bass:</span>   [<span id="bar-bass">..........</span>] [<span id="bass-perc">0%</span>]<br>
-            <span class="label">Mid:</span>    [<span id="bar-mid">..........</span>] [<span id="mid-perc">0%</span>]<br>
-            <span class="label">Treble:</span> [<span id="bar-treble">..........</span>] [<span id="treble-perc">0%</span>]<br>
-        </div>
     </div>
+
+    <script src="imageASCII.js"></script>
     <script src="lyricsFectch.js"></script>
     <script src="script.js"></script>
 </body>

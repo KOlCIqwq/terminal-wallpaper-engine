@@ -14,16 +14,32 @@
             "custom_cpu" : 
             {
                 "order": 1,
-                "text" : "Override: CPU Name",
+                "text" : "CPU Name",
                 "type" : "textinput",
                 "value" : ""
             },
             "custom_gpu" : 
             {
                 "order": 2,
-                "text" : "Override: GPU Name",
+                "text" : "GPU Name",
                 "type" : "textinput",
                 "value" : ""
+            },
+            "ascii_resolution": {
+                "order": 3,
+                "text": "Resolution (Detail)",
+                "type": "slider",
+                "min": 20,
+                "max": 150,
+                "value": 80
+            },
+            "ascii_fontsize": {
+                "order": 4,
+                "text": "Image Size (Scale)",
+                "type": "slider",
+                "min": 4,
+                "max": 24,
+                "value": 8
             }
         },
         "supportsaudioprocessing" : true

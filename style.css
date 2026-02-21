@@ -1,95 +1,125 @@
 body {
-    background-color: #0d0d0d;
+    background-color: #050505;
     color: #cccccc;
     font-family: 'Consolas', 'Courier New', monospace;
-    font-size: 16px;
+    font-size: 15px;
     margin: 40px;
-    overflow: hidden;
+    line-height: 1.3;
+    overflow-x: hidden;
 }
 
-pre {
-    font-family: inherit;
-    color: #3b8eea;
-    margin: 0;
-}
-
-span {
-    color: #d1d1d1;
-}
-
-.container {
+.terminal-container {
+    max-width: 850px;
     display: flex;
     flex-direction: column;
-    gap: 20px;
 }
 
-#album-art {
-    width: 60px;
-    height: 60px;
-    margin-right: 15px;
-    border: 1px solid #555;
-}
+.blue { color: #3b8eea; }
+.white { color: #d1d1d1; }
+.gray { color: #555555; }
+.yellow { color: #e5c07b; }
 
-.media-container {
+.sys-block {
     display: flex;
-    align-items: center;
-    border-top: 1px dashed #555;
-    padding-top: 20px;
 }
 
-.visualizer span {
-    color: #e5c07b;
+.logo-col {
+    margin-right: 20px;
+    font-weight: bold;
+}
+
+.line {
+    display: flex;
+    white-space: pre;
 }
 
 .label {
-  display: inline-block;
-  width: 80px;
+    display: inline-block;
+    width: 60px;
 }
 
-.terminal-box {
-    margin-top: 20px;
-    border: 1px solid #333;
-    background: rgba(0, 0, 0, 0.8);
-    font-family: 'Courier New', monospace;
-    width: 100%;
-    max-width: 600px;
+.vis-label {
+    display: inline-block;
+    width: 80px;
 }
 
-.terminal-box .header {
-    background: #333;
-    color: #000;
-    padding: 2px 5px;
-    font-weight: bold;
-    font-size: 0.8rem;
+.spacer {
+    height: 15px;
+}
+
+.divider, .double-divider {
+    overflow: hidden;
+    white-space: nowrap;
+    margin: 5px 0;
+    letter-spacing: 1px;
+}
+
+.media-table {
+    display: flex;
+    flex-direction: column;
+}
+
+.media-header, .media-row {
+    display: flex;
+}
+
+.col {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-right: 15px;
+}
+
+.playing-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.playing-line {
+    flex-grow: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    margin-right: 20px;
+}
+
+.ascii-wrapper {
+    margin-top: 15px;
+}
+
+#asciiOutput {
+    font-family: monospace;
+    font-size: 8px;
+    line-height: 0.65;
+    letter-spacing: 0.1em;
+    white-space: pre;
+    margin: 0;
 }
 
 .lyrics-content {
     height: 150px;
-    overflow-y: auto; 
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none;  /* IE 10+ */
-    
-    padding: 10px;
-    font-size: 0.9rem;
-    color: #4af626;
-    
-    display: block; 
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    font-size: 0.95rem;
+    color: #d1d1d1;
     position: relative;
-    
-    mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
-    -webkit-mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+    white-space: pre-wrap;
+    mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
 }
 
 .lyric-line {
     padding: 2px 0;
-    white-space: pre-wrap;
-    opacity: 0.3; /* Dim inactive lines */
+    opacity: 0.3;
     transition: all 0.2s;
 }
 
 .lyric-line.active {
     opacity: 1;
     font-weight: bold;
+    color: #4af626;
     text-shadow: 0 0 5px #4af626;
 }
 

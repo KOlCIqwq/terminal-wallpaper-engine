@@ -146,7 +146,9 @@ def monitor():
     startup = True
     
     while True:
-        cpu = psutil.cpu_percent(interval = 0.55)
+        interval = random.uniform(0.55,0.7)
+        
+        cpu = psutil.cpu_percent(interval = interval)
         gpu_stats = gpustat.GPUStatCollection.new_query()
         for gpu in gpu_stats.gpus:
             # Later adapt to multiple gpu
@@ -189,7 +191,7 @@ def monitor():
         # Track change
         if title != last_track_title:
             last_track_title = title
-            cur_pos = 1
+            cur_pos = 0
             reset = True
         # Paused
         elif status == 'Paused':

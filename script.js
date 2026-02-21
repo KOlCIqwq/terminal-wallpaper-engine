@@ -30,6 +30,35 @@ function formatTime(seconds){
     return `${m}:${s}`;
 }
 
+function updatePlayingBar(current, total) {
+    const barElement = document.getElementById('playing-bar');
+    if (!barElement) return;
+
+    const barLength = 56; 
+    
+    if (!total || total <= 0) {
+        barElement.textContent = "Playing: " + "-".repeat(barLength);
+        return;
+    }
+
+    let percent = current / total;
+    if (percent > 1) percent = 1;
+    if (percent < 0) percent = 0;
+
+    const filledLength = Math.floor(barLength * percent);
+    const emptyLength = barLength - filledLength;
+
+    let barString = "Playing: ";
+
+    if (filledLength === 0) {
+        barString += "-".repeat(barLength);
+    } else {
+        barString += "=".repeat(filledLength - 1) + ">" + "-".repeat(emptyLength);
+    }
+
+    barElement.textContent = barString;
+}
+
 function fetchSystemSpecs() {
     fetch('http://127.0.0.1:25555/specs')
         .then(response => {
@@ -86,10 +115,21 @@ function fetchSystemSpecs() {
                 syncLyrics(parseFloat(data.media_position));
             }
 
-            let cur_position = formatTime(data.media_position)
+            /*let cur_position = formatTime(data.media_position)
             let cur_duration = formatTime(data.media_duration)
 
-            document.getElementById('duration').textContent = `${cur_position} / ${cur_duration}`;
+            document.getElementById('duration').textContent = `${cur_position} / ${cur_duration}`; */
+
+            if (data.media_position !== undefined && data.media_duration !== undefined) {
+                let cur_position = formatTime(data.media_position);
+                let cur_duration = formatTime(data.media_duration);
+
+                document.getElementById('duration').textContent = `[${cur_position} / ${cur_duration}]`;
+                updatePlayingBar(data.media_position, data.media_duration);
+            } else {
+                document.getElementById('duration').textContent = "[ - / - ]";
+                updatePlayingBar(0, 0);
+            }
 
             const dataToSave = {
                 os: data.os,
@@ -120,33 +160,41 @@ const overrides = {
     ram: false
 };
 
-window.wallpaperPropertyListener = {
-    applyUserProperties: function(properties) {
-        if (properties.custom_cpu) {
-            const value = properties.custom_cpu.value.trim();
-            overrides.cpu = value !== "";
-            if (overrides.cpu) {
-                document.getElementById('cpu').textContent = value;
-            }
-        }
+window.myPropertyHandlers = window.myPropertyHandlers || [];
 
-        if (properties.custom_gpu) {
-            const value = properties.custom_gpu.value.trim();
-            overrides.gpu = value !== "";
-            if (overrides.gpu) {
-                document.getElementById('gpu').textContent = value;
-            }
+if (!window.wallpaperPropertyListener) {
+    window.wallpaperPropertyListener = {
+        applyUserProperties: function(properties) {
+            window.myPropertyHandlers.forEach(handler => handler(properties));
         }
+    };
+}
 
-        if (properties.custom_ram) {
-            const value = properties.custom_ram.value.trim();
-            overrides.ram = value !== "";
-            if (overrides.ram) {
-                document.getElementById('ram').textContent = value;
-            }
+window.myPropertyHandlers.push(function(properties) {
+    if (properties.custom_cpu) {
+        const value = properties.custom_cpu.value.trim();
+        overrides.cpu = value !== "";
+        if (overrides.cpu) {
+            document.getElementById('cpu').textContent = value;
         }
     }
-};
+
+    if (properties.custom_gpu) {
+        const value = properties.custom_gpu.value.trim();
+        overrides.gpu = value !== "";
+        if (overrides.gpu) {
+            document.getElementById('gpu').textContent = value;
+        }
+    }
+
+    if (properties.custom_ram) {
+        const value = properties.custom_ram.value.trim();
+        overrides.ram = value !== "";
+        if (overrides.ram) {
+            document.getElementById('ram').textContent = value;
+        }
+    }
+});
 
 const track_info = {
     title: '',
@@ -164,17 +212,6 @@ window.wallpaperRegisterMediaPropertiesListener((event) => {
 
     track_info.title = event.title;
     track_info.artist = event.artist;
-});
-
-// Thumbnail
-window.wallpaperRegisterMediaThumbnailListener((event) => {
-    const img = document.getElementById('album-art');
-    if (event.thumbnail) {
-        img.src = event.thumbnail;
-        img.style.display = 'block';
-    } else {
-        img.style.display = 'none';
-    }
 });
 
 window.wallpaperRegisterAudioListener((audioArray) => {

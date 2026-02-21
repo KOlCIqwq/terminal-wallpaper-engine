@@ -22,6 +22,8 @@ function parseLRC(lrcString) {
             }
         }
     });
+
+    result.push({ time: 999, text: ' '})
     return result;
 }
 
@@ -30,7 +32,7 @@ function getLyrics(title, artist){
         artist_name: artist,
         track_name: title
     });
-    document.getElementById('lyrics-container').innerHTML = '<span class="dim">Downloading data packet...</span>';
+    document.getElementById('lyrics-container').innerHTML = '<br><span class="dim">Downloading data packet...</span>';
     fetch(`https://lrclib.net/api/get?${params.toString()}`)
         .then(response => {
             if (!response.ok) throw new Error("Lyrics not found or Server down");
@@ -41,12 +43,12 @@ function getLyrics(title, artist){
                 currentLyricsData = parseLRC(data.syncedLyrics);
                 renderLyricsToDom(); // Initial render
             } else {
-                document.getElementById('lyrics-container').innerHTML = '<span class="dim">Error: Sync data missing.</span>';
+                document.getElementById('lyrics-container').innerHTML = '<br><span class="dim">Error: Sync data missing.</span>';
                 currentLyricsData = [];
             }
         })
         .catch(err => {
-            document.getElementById('lyrics-container').innerHTML = '<span class="dim">Target offline. No lyrics.</span>';
+            document.getElementById('lyrics-container').innerHTML = '<br><span class="dim">Target offline. No lyrics.</span>';
             currentLyricsData = [];
         });
 }
