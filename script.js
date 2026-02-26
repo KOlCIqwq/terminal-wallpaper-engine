@@ -1,4 +1,13 @@
 const CACHE_KEY = "specs"
+const overrides = {
+    cpu: false,
+    gpu: false,
+    ram: false
+};
+const position = {
+    lon: 0.0,
+    lat: 0.0
+}
 
 function loadCachedSpecs(){
     const cached = localStorage.getItem(CACHE_KEY)
@@ -34,7 +43,7 @@ function updatePlayingBar(current, total) {
     const barElement = document.getElementById('playing-bar');
     if (!barElement) return;
 
-    const barLength = 56; 
+    const barLength = 70; 
     
     if (!total || total <= 0) {
         barElement.textContent = "Playing: " + "-".repeat(barLength);
@@ -154,12 +163,6 @@ loadCachedSpecs();
 // Trigger the fetch when wallpaper loads
 fetchSystemSpecs();
 
-const overrides = {
-    cpu: false,
-    gpu: false,
-    ram: false
-};
-
 window.myPropertyHandlers = window.myPropertyHandlers || [];
 
 if (!window.wallpaperPropertyListener) {
@@ -193,6 +196,29 @@ window.myPropertyHandlers.push(function(properties) {
         if (overrides.ram) {
             document.getElementById('ram').textContent = value;
         }
+    }
+
+    let shouldUpdateWeather = false;
+
+    if (properties.longitude){
+        const value = String(properties.longitude.value).trim();
+        if (value !== "") {
+            position.lon = value;
+            shouldUpdateWeather = true;
+        }
+    }
+
+    if (properties.latitude){
+        const value = String(properties.latitude.value).trim();
+        position.lat = value !== "";
+        if (value !== "") {
+            position.lat = value;
+            shouldUpdateWeather = true;
+        }
+    }
+
+    if (shouldUpdateWeather && position.lon && position.lat) {
+        getWeather(position.lon, position.lat);
     }
 });
 

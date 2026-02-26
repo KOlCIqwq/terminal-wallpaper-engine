@@ -40,6 +40,18 @@
                 "min": 4,
                 "max": 24,
                 "value": 8
+            },
+            "latitude": {
+                "order": 5,
+                "text" : "Latitude",
+                "type" : "textinput",
+                "value" : ""
+            },
+            "longitude": {
+                "order": 6,
+                "text" : "Longitude",
+                "type" : "textinput",
+                "value" : ""
             }
         },
         "supportsaudioprocessing" : true

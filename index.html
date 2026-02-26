@@ -44,6 +44,25 @@
         </div>
         
         <div class="gray divider">--------------------------------------------------------------------------------</div>
+        
+        <div class="spacer"></div>
+        <div class="line">
+            <span class="yellow vis-label">Today:</span>
+            <span class="white" id="today-weather">[ ... ]</span>
+        </div>
+        <div class="line">
+            <span class="yellow vis-label">Hourly:</span>
+            <span class="white" id="hourly-weather">[ ... ]</span>
+        </div>
+        <div class="line">
+            <span class="yellow vis-label">Forecast:</span>
+            <span class="white" id="next-weather-icons">[ ... ]</span>
+        </div>
+        <div class="line">
+            <span class="yellow vis-label"></span> <span class="white" id="next-weather-dates">[ ... ]</span>
+        </div>
+
+        <div class="gray divider">--------------------------------------------------------------------------------</div>
 
         <div class="vis-block">
             <div class="line"><span class="white vis-label">Bass:</span><span class="yellow">[<span id="bar-bass">..........</span>] <span id="bass-perc">0%</span></span></div>
@@ -90,6 +109,7 @@
 
     </div>
 
+    <script src="weatherFetch.js"></script>
     <script src="imageASCII.js"></script>
     <script src="lyricsFectch.js"></script>
     <script src="script.js"></script>
