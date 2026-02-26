@@ -43,7 +43,7 @@ function updatePlayingBar(current, total) {
     const barElement = document.getElementById('playing-bar');
     if (!barElement) return;
 
-    const barLength = 70; 
+    const barLength = 78; 
     
     if (!total || total <= 0) {
         barElement.textContent = "Playing: " + "-".repeat(barLength);
@@ -298,4 +298,12 @@ setInterval(() => {
     const now = new Date();
     document.getElementById('clock').textContent = now.toLocaleTimeString();
     document.getElementById('date').textContent = now.toLocaleDateString();
+
+    // refresh the weather at each hour
+    if (now.getMinutes() === 0 && now.getSeconds() === 2) {
+        // check it has actually provided coordinates yet
+        if (position.lon && position.lat) {
+            getWeather(position.lon, position.lat);
+        }
+    }
 }, 1000);
