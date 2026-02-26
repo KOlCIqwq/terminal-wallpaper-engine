@@ -318,7 +318,7 @@ setInterval(() => {
     document.getElementById('date').textContent = now.toLocaleDateString();
 
     // refresh the weather at each hour
-    if (now.getMinutes() === 0 && now.getSeconds() === 2) {
+    if (now.getMinutes() == 0 && now.getSeconds() == 0) {
         // check it has actually provided coordinates yet
         if (position.lon && position.lat) {
             getWeather(position.lon, position.lat);
