@@ -55,6 +55,32 @@ function getWeather(lon,lat){
     });
 }
 
+function updateLocationAndWeather(cityName) {
+    if (!cityName || cityName.trim() === "") return;
+    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=1&language=en&format=json`;
+
+    fetch(url)
+        .then(response => {
+            if (!response.ok) throw new Error("Geocoding API error");
+            return response.json();
+        })
+        .then(data => {
+            if (data.results && data.results.length > 0) {
+                const loc = data.results[0];
+                
+                position.lat = loc.latitude;
+                position.lon = loc.longitude;                
+                getWeather(position.lon, position.lat);
+            } else {
+                document.getElementById("today-weather").innerText = `[ Error: City '${cityName}' not found ]`;
+            }
+        })
+        .catch(error => {
+            console.error(error);
+            document.getElementById("today-weather").innerText = "[ Error resolving city ]";
+        });
+}
+
 function parseWeather(code) {
     const wwMap = {
         0:  { desc: "Sky Clear", icon: "☀️" },

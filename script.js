@@ -4,10 +4,17 @@ const overrides = {
     gpu: false,
     ram: false
 };
+// raw inputs
+const userLocation = {
+    city: "",
+    lat: "",
+    lon: ""
+};
+// Final inputs for weather
 const position = {
-    lon: 0.0,
-    lat: 0.0
-}
+    lat: null,
+    lon: null
+};
 
 function loadCachedSpecs(){
     const cached = localStorage.getItem(CACHE_KEY)
@@ -200,25 +207,36 @@ window.myPropertyHandlers.push(function(properties) {
 
     let shouldUpdateWeather = false;
 
+    if (properties.city_name){
+        userLocation.city = String(properties.city_name.value).trim();
+        shouldUpdateWeather = true;
+    }
+
     if (properties.longitude){
-        const value = String(properties.longitude.value).trim();
-        if (value !== "") {
-            position.lon = value;
-            shouldUpdateWeather = true;
-        }
+        userLocation.lon = String(properties.longitude.value).trim();
+        shouldUpdateWeather = true;
     }
 
     if (properties.latitude){
-        const value = String(properties.latitude.value).trim();
-        position.lat = value !== "";
-        if (value !== "") {
-            position.lat = value;
-            shouldUpdateWeather = true;
-        }
+        userLocation.lat = String(properties.latitude.value).trim();
+        shouldUpdateWeather = true;
     }
 
-    if (shouldUpdateWeather && position.lon && position.lat) {
-        getWeather(position.lon, position.lat);
+    if (shouldUpdateWeather) {
+        if (userLocation.lat !== "" && userLocation.lon !== "") {
+            position.lat = userLocation.lat;
+            position.lon = userLocation.lon;
+            getWeather(position.lon, position.lat);
+        }
+        else if (userLocation.city !== "") {
+            updateLocationAndWeather(userLocation.city);
+        }
+        else {
+            document.getElementById("today-weather").innerText = "[ No location provided ]";
+            document.getElementById("hourly-weather").innerText = "[ ... ]";
+            document.getElementById("next-weather-icons").innerText = "[ ... ]";
+            document.getElementById("next-weather-dates").innerText = "[ ... ]";
+        }
     }
 });
 
