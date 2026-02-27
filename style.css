@@ -9,7 +9,7 @@ body {
 }
 
 .terminal-container {
-    max-width: 850px;
+    max-width: 900px;
     display: flex;
     flex-direction: column;
 }
