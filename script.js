@@ -181,6 +181,12 @@ if (!window.wallpaperPropertyListener) {
 }
 
 window.myPropertyHandlers.push(function(properties) {
+    if (properties.username) {
+        const value = properties.username.value.trim();
+        if (value != ""){
+            document.getElementById('username').textContent = value;
+        }
+    }
     if (properties.custom_cpu) {
         const value = properties.custom_cpu.value.trim();
         overrides.cpu = value !== "";
