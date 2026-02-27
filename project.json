@@ -11,57 +11,55 @@
                 "type" : "color",
                 "value" : "0 0.47 0.84"
             },
-            "os_group": {
+            "location_group": {
                 "order": 1,
+                "text": "Location Settings",
+                "type": "group"
+            },
+            "city_name": {
+                "order": 2,
+                "text" : "City Name",
+                "type" : "textinput",
+                "value" : ""
+            },
+            "latitude": {
+                "order": 3,
+                "text" : "Latitude",
+                "type" : "textinput",
+                "value" : ""
+            },
+            "longitude": {
+                "order": 4,
+                "text" : "Longitude",
+                "type" : "textinput",
+                "value" : ""
+            },
+            "os_group": {
+                "order": 5,
                 "text": "OS Settings",
                 "type": "group"
             },
             "username" : 
             {
-                "order": 2,
+                "order": 6,
                 "text" : "Username",
                 "type" : "textinput",
                 "value" : ""
             },
             "custom_cpu" : 
             {
-                "order": 3,
+                "order": 7,
                 "text" : "CPU Name",
                 "type" : "textinput",
                 "value" : ""
             },
             "custom_gpu" : 
             {
-                "order": 4,
+                "order": 8,
                 "text" : "GPU Name",
                 "type" : "textinput",
                 "value" : ""
             },
-
-            "location_group": {
-                "order": 100,
-                "text": "Location Settings",
-                "type": "group"
-            },
-            "city_name": {
-                "order": 101,
-                "text" : "City Name",
-                "type" : "textinput",
-                "value" : ""
-            },
-            "latitude": {
-                "order": 102,
-                "text" : "Latitude",
-                "type" : "textinput",
-                "value" : ""
-            },
-            "longitude": {
-                "order": 103,
-                "text" : "Longitude",
-                "type" : "textinput",
-                "value" : ""
-            },
-
             "image_group": {
                 "order": 200,
                 "text": "Image Settings",
@@ -79,11 +77,11 @@
                 "order": 202,
                 "text": "Image Size (Scale)",
                 "type": "slider",
-                "min": 4,
-                "max": 24,
+                "min": 2,
+                "max": 15,
                 "value": 8
             }
-            
+
         },
         "supportsaudioprocessing" : true
     },
