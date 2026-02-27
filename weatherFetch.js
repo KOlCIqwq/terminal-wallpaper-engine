@@ -12,11 +12,19 @@ function getWeather(lon,lat){
         return response.json();
     })
     .then(data => {
-        let today = parseWeather(data.daily.weather_code[0]);
-        document.getElementById("today-weather").innerText = `[ ${today.icon} ${today.desc} ]`;
-
         const currentHour = new Date();
-        let startIndex = data.hourly.time.findIndex(t => new Date(t) >= currentHour);
+        currentHour.setMinutes(0, 0, 0);
+
+        let startIndex = data.hourly.time.findIndex(t => new Date(t).getTime() >= currentHour.getTime());
+        if (startIndex === -1) startIndex = 0;
+
+        let today = parseWeather(data.daily.weather_code[0]);
+        let nowTemp = Math.round(data.hourly.temperature_2m[startIndex - 1]);
+        let nowPrecip = data.hourly.precipitation[startIndex - 1];
+        let nowTimeStr = new Date(data.hourly.time[startIndex - 1]).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+        document.getElementById("today-weather").innerText = `[ ${today.icon} ${today.desc}; ${nowTimeStr}: ${nowTemp}°C / ${nowPrecip}mm]`;
+
         if (startIndex === -1) startIndex = 0;
 
         let hourlyBlocks = [];
@@ -26,29 +34,36 @@ function getWeather(lon,lat){
             let precip = data.hourly.precipitation[i];
             
             // Example format: 14:00 15°C/0mm
-            hourlyBlocks.push(`${timeStr}: ${temp}°C/${precip}mm`);
+            hourlyBlocks.push(`${timeStr}: ${temp}°C / ${precip}mm`);
         }
         document.getElementById("hourly-weather").innerText = `[ ${hourlyBlocks.join(" | ")} ]`;
 
-        let iconRow = [];
-        let dateRow = [];
+        let iconHTML = "";
+        let dateHTML = "";
+
+        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
         for (let i = 1; i < 6; i++){
             let weather = parseWeather(data.daily.weather_code[i]);
-            let combinedWeather = `${weather.icon} ${weather.desc}`;
+
+            let [y, m, d] = data.daily.time[i].split('-');
+            let forecastDate = new Date(y, m - 1, d); 
+            let dayName = days[forecastDate.getDay()];
+            let dateStr = `${d}/${m}`;
+
+            let cellStyle = `display: inline-block; width: 130px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom;`;
+
+            iconHTML += `<span style="${cellStyle}">${weather.icon}  ${weather.desc}</span>`;
+            dateHTML += `<span style="${cellStyle}">${dateStr} ${dayName}</span>`;
             
-            // Format date from "2026-02-27" to "02/27"
-            let dateStr = data.daily.time[i].substring(5).replace('-', '/'); 
-            
-            // Pad the strings with spaces so the pipes (|) align vertically
-            iconRow.push(combinedWeather.padEnd(12, ' ')); 
-            
-            // Centers the date a bit under the text
-            dateRow.push("  " + dateStr.padEnd(10, ' ')); 
+            if (i < 5) {
+                iconHTML += " | ";
+                dateHTML += " | ";
+            }
         }
 
-        document.getElementById("next-weather-icons").innerText = `[ ${iconRow.join(" | ")} ]`;
-        document.getElementById("next-weather-dates").innerText = `[ ${dateRow.join(" | ")} ]`;
+        document.getElementById("next-weather-icons").innerHTML = `[ ${iconHTML} ]`;
+        document.getElementById("next-weather-dates").innerHTML = `[ ${dateHTML} ]`;
     })
     .catch(error => {
         document.getElementById("today-weather").innerText = "Error loading weather";

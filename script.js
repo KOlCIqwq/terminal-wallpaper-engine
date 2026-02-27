@@ -312,16 +312,18 @@ function updatePercent(elementId, val){
     document.getElementById(elementId).textContent = percentage + '%';
 }
 
+let lastWeatherHour = -1;
 setInterval(() => {
     const now = new Date();
     document.getElementById('clock').textContent = now.toLocaleTimeString();
     document.getElementById('date').textContent = now.toLocaleDateString();
 
     // refresh the weather at each hour
-    if (now.getMinutes() == 0 && now.getSeconds() == 0) {
-        // check it has actually provided coordinates yet
+    if (now.getHours() !== lastWeatherHour) {
         if (position.lon && position.lat) {
+            console.log("New hour detected! Fetching weather...");
             getWeather(position.lon, position.lat);
+            lastWeatherHour = now.getHours();
         }
     }
 }, 1000);
