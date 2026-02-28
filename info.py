@@ -146,7 +146,7 @@ def monitor():
     startup = True
     
     while True:
-        interval = random.uniform(0.55,0.7)
+        interval = random.uniform(0.55,0.8)
         
         cpu = psutil.cpu_percent(interval = interval)
         gpu_stats = gpustat.GPUStatCollection.new_query()
