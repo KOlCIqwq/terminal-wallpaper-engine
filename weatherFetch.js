@@ -84,7 +84,9 @@ function updateLocationAndWeather(cityName) {
                 const loc = data.results[0];
                 
                 position.lat = loc.latitude;
-                position.lon = loc.longitude;                
+                position.lon = loc.longitude;
+                // Change city name
+                document.getElementById("city-name").innerText = `${cityName}:`;
                 getWeather(position.lon, position.lat);
             } else {
                 document.getElementById("today-weather").innerText = `[ Error: City '${cityName}' not found ]`;
