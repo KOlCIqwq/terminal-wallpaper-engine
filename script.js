@@ -46,16 +46,21 @@ function formatTime(seconds){
     return `${m}:${s}`;
 }
 
+const playingBar = document.getElementById('playing-bar');
+
 function updatePlayingBar(current, total) {
-    const barElement = document.getElementById('playing-bar');
-    if (!barElement) return;
+    if (!playingBar) return;
 
     const barLength = 67; 
     
     if (!total || total <= 0) {
-        barElement.textContent = "Playing: " + "-".repeat(barLength);
+        playingBar.textContent = "Playing: " + "-".repeat(barLength);
+        playingBar.dataset.duration = 0; // Reset duration
         return;
     }
+
+    // Save the duration directly onto the HTML element so the clicker can read it
+    playingBar.dataset.duration = total;
 
     let percent = current / total;
     if (percent > 1) percent = 1;
@@ -72,7 +77,35 @@ function updatePlayingBar(current, total) {
         barString += "=".repeat(filledLength - 1) + ">" + "-".repeat(emptyLength);
     }
 
-    barElement.textContent = barString;
+    playingBar.textContent = barString;
+}
+
+if (playingBar) {
+    playingBar.style.cursor = 'pointer'; 
+    
+    playingBar.addEventListener('mousedown', (e) => {
+        
+        // Stop the drag script from accidentally picking up the widget when clicks the bar
+        e.stopPropagation(); 
+        
+        
+        const currentDuration = parseFloat(playingBar.dataset.duration) || 0;
+        
+        if (currentDuration <= 0) {
+            return; 
+        }
+        
+        const rect = playingBar.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        
+        let percent = clickX / rect.width;
+        if (percent < 0) percent = 0;
+        if (percent > 1) percent = 1;
+        
+        const targetSeconds = currentDuration * percent;
+        
+        fetch(`http://127.0.0.1:25555/media/seek?pos=${targetSeconds}`).catch(e => console.log(e));
+    });
 }
 
 function fetchSystemSpecs() {
@@ -137,6 +170,8 @@ function fetchSystemSpecs() {
             document.getElementById('duration').textContent = `${cur_position} / ${cur_duration}`; */
 
             if (data.media_position !== undefined && data.media_duration !== undefined) {
+                /* currentMediaDuration = data.media_duration; */
+
                 let cur_position = formatTime(data.media_position);
                 let cur_duration = formatTime(data.media_duration);
 
@@ -520,3 +555,4 @@ if (btnPrev && btnPlay && btnNext) {
         fetch('http://127.0.0.1:25555/media/next').catch(e => console.log(e));
     });
 }
+

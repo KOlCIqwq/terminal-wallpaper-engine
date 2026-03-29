@@ -13,6 +13,7 @@ import datetime
 import time
 import random
 import ctypes
+from urllib.parse import urlparse, parse_qs
 
 try:
     from winsdk.windows.media.control import GlobalSystemMediaTransportControlsSessionManager
@@ -231,31 +232,67 @@ def media_command(command):
     # Simulate pressing the hardware key down, then releasing it
     ctypes.windll.user32.keybd_event(VK_CODE, 0, 0, 0) # Key down
     ctypes.windll.user32.keybd_event(VK_CODE, 0, 2, 0) # Key up
+        
+async def media_seek(position_seconds):
+    sessions = await GlobalSystemMediaTransportControlsSessionManager.request_async()
+    current_session = sessions.get_current_session()
+    
+    if current_session:
+        try:
+            # 1 second = 10,000,000 ticks. winsdk strictly requires an Int64 integer.
+            ticks = int(position_seconds * 10000000)
+            print(f"--> [DEBUG] Seeking to {position_seconds} seconds...")
             
+            # Send the command directly
+            await current_session.try_change_playback_position_async(ticks)
+        except Exception as e:
+            print(f"--> [DEBUG] Seek failed: {e}")
         
 class RequestHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         pass # Silence console logs
 
     def do_GET(self):
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        if self.path == '/specs':
+        parsed_path = urlparse(self.path)
+        
+        if parsed_path.path == '/specs':
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            # Send the current state of the global dictionary
             self.wfile.write(json.dumps(system_state).encode())
-        elif self.path == '/media/playpause':
+            
+        elif parsed_path.path == '/media/playpause':
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             media_command("playpause")
             
-        elif self.path == '/media/next':
+        elif parsed_path.path == '/media/next':
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             media_command("next")
             
-        elif self.path == '/media/prev':
+        elif parsed_path.path == '/media/prev':
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             media_command("prev")
+            
+        elif parsed_path.path == '/media/seek':
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            
+            # Read the target time from the URL
+            query_components = parse_qs(parsed_path.query)
+            if 'pos' in query_components:
+                try:
+                    pos_sec = float(query_components['pos'][0])
+                    asyncio.run(media_seek(pos_sec))
+                except ValueError:
+                    pass
         else:
             self.send_response(404)
             self.end_headers()
