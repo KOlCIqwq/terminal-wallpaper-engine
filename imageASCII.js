@@ -1,9 +1,11 @@
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d', {willReadFrequently: true});
-const asciiOutput = document.getElementById('asciiOutput');
 
-// A string of characters ordered from darkest to lightest
+const asciiOutput = document.getElementById('asciiOutput');
+const asciiCtx = asciiOutput.getContext('2d');
+
 const density = "Ñ@#W$9876543210?!abc;:+=-,._ ";
+const densityLen = density.length - 1;
 
 let currentAsciiWidth = 80;
 let currentFontSize = 8;
@@ -31,10 +33,10 @@ window.myPropertyHandlers.push(function(properties) {
     }
 
     if (properties.ascii_fontsize) {
-        const newSize = parseInt(properties.ascii_fontsize.value);
-        asciiOutput.style.fontSize = newSize + 'px';
-        asciiOutput.style.lineHeight = (newSize * 0.65) + 'px'; 
+        // Update the global font size variable
+        currentFontSize = parseInt(properties.ascii_fontsize.value); 
         scaleNeedsUpdate = true;
+        redrawNeeded = true; // Font size changed, so we must redraw the canvas text
     }
 
     if (scaleNeedsUpdate){
@@ -57,7 +59,8 @@ window.wallpaperRegisterMediaThumbnailListener((event) => {
         currentThumbnailBase64 = event.thumbnail;
         generateAscii(currentThumbnailBase64);
     } else {
-        asciiOutput.innerHTML = "";
+        // Clear the canvas if there is no image
+        asciiCtx.clearRect(0, 0, asciiOutput.width, asciiOutput.height);
         currentThumbnailBase64 = null;
     }
 });
@@ -70,41 +73,48 @@ function generateAscii(base64Image) {
         const scaleFactor = asciiWidth / asciiImg.width;
         const asciiHeight = Math.floor(asciiImg.height * scaleFactor);
 
+        // Draw image to hidden canvas to sample the raw pixels
         canvas.width = asciiWidth;
         canvas.height = asciiHeight;
-
         ctx.drawImage(asciiImg, 0, 0, asciiWidth, asciiHeight);
 
         const imageData = ctx.getImageData(0, 0, asciiWidth, asciiHeight);
         const pixels = imageData.data;
 
-        let asciiString = "";
+        // Prep the Output Canvas Dimensions
+        const charWidth = currentFontSize * 0.6; // standard monospace aspect ratio
+        const charHeight = currentFontSize * 0.65; // line height spacing
+        
+        asciiOutput.width = asciiWidth * charWidth;
+        asciiOutput.height = asciiHeight * charHeight;
+        
+        // Setup Canvas Text styling
+        asciiCtx.clearRect(0, 0, asciiOutput.width, asciiOutput.height);
+        asciiCtx.font = `bold ${currentFontSize}px Consolas, "Courier New", monospace`;
+        asciiCtx.textBaseline = "top";
 
+        // The high-speed drawing loop
         for (let y = 0; y < asciiHeight; y++) {
-            let row = ""; 
             for (let x = 0; x < asciiWidth; x++) {
                 const offset = (y * asciiWidth + x) * 4;
                 const r = pixels[offset];
                 const g = pixels[offset + 1];
                 const b = pixels[offset + 2];
 
-                const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
-                const charIndex = Math.floor(mapRange(brightness, 0, 255, 0, density.length - 1));
+                // Super-fast integer math for brightness
+                const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+                const charIndex = Math.floor((brightness / 255) * densityLen);
+                
+                const char = density[charIndex];
 
-                let char = density.charAt(charIndex);
-                if (char === " ") {
-                    char = "&nbsp;";
+                // Skip drawing empty space
+                if (char !== " ") {
+                    asciiCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                    asciiCtx.fillText(char, x * charWidth, y * charHeight);
                 }
-                row += `<span style="color: rgb(${r}, ${g}, ${b});">${char}</span>`;
             }
-            asciiString += row + "<br>";
         }
-        asciiOutput.innerHTML = asciiString;
     };
     
     asciiImg.src = base64Image;
-}
-
-function mapRange(value, inMin, inMax, outMin, outMax) {
-    return (value - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
 }

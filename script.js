@@ -55,7 +55,6 @@ const playingBar = document.getElementById('playing-bar');
 function updatePlayingBar(current, total) {
     if (!playingBar) return;
 
-    // You can increase this number if the bar looks too short now!
     const barLength = 67; 
     
     if (!total || total <= 0) {
