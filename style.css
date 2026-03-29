@@ -20,15 +20,22 @@ body {
     max-width: 95vw;
     padding: 15px; 
     box-sizing: border-box;
-    border: 1px solid transparent;
+    
+    background-color: rgba(5, 5, 5, 0); 
+    border: 1px solid rgba(255, 255, 255, 0); 
+    border-radius: 8px;
+    
+    /* backdrop-filter: blur(4px); 
+    -webkit-backdrop-filter: blur(4px); */
+
     transition: border 0.2s, background-color 0.2s;
 }
 
 /*unlocked*/
 .edit-mode-active .draggable-widget {
     cursor: grab;
-    border: 1px dashed #555555;
-    background-color: rgba(255, 255, 255, 0.02);
+    border: 1px dashed #e5c07b; /* Turns the border yellow when unlocked */
+    background-color: rgba(5, 5, 5, 0.308); /* Darkens the box slightly when grabbing */
 }
 
 .edit-mode-active .draggable-widget:active {

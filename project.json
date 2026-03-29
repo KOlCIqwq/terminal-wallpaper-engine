@@ -138,6 +138,30 @@
                 "text": "Show Lyrics",
                 "type": "bool",
                 "value": true
+            },
+            "background_group": {
+                "order": 500,
+                "text": "Background Settings",
+                "type": "group"
+            },
+            "bg_color": {
+                "order": 501,
+                "text": "Background Color",
+                "type": "color",
+                "value": "0.02 0.02 0.02"
+            },
+            "bg_image": {
+                "order": 502,
+                "text": "Background Image",
+                "type": "file"
+            },
+            "bg_dim": {
+                "order": 503,
+                "text": "Image Dimming",
+                "type": "slider",
+                "min": 0,
+                "max": 100,
+                "value": 60
             }
         },
         "supportsaudioprocessing" : true

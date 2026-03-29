@@ -16,6 +16,10 @@ const position = {
     lon: null
 };
 
+let lastResetToggleValue = null;
+let currentBgImage = "";
+let currentBgDim = 0.6;
+
 function loadCachedSpecs(){
     const cached = localStorage.getItem(CACHE_KEY)
     if (cached){
@@ -51,15 +55,16 @@ const playingBar = document.getElementById('playing-bar');
 function updatePlayingBar(current, total) {
     if (!playingBar) return;
 
+    // You can increase this number if the bar looks too short now!
     const barLength = 67; 
     
     if (!total || total <= 0) {
-        playingBar.textContent = "Playing: " + "-".repeat(barLength);
-        playingBar.dataset.duration = 0; // Reset duration
+        // Removed "Playing: " from here
+        playingBar.textContent = "-".repeat(barLength);
+        playingBar.dataset.duration = 0; 
         return;
     }
 
-    // Save the duration directly onto the HTML element so the clicker can read it
     playingBar.dataset.duration = total;
 
     let percent = current / total;
@@ -69,7 +74,8 @@ function updatePlayingBar(current, total) {
     const filledLength = Math.floor(barLength * percent);
     const emptyLength = barLength - filledLength;
 
-    let barString = "Playing: ";
+    // Start with an empty string instead of "Playing: "
+    let barString = ""; 
 
     if (filledLength === 0) {
         barString += "-".repeat(barLength);
@@ -224,7 +230,6 @@ if (!window.wallpaperPropertyListener) {
     };
 }
 
-let lastResetToggleValue = null;
 window.myPropertyHandlers.push(function(properties) {
     let isEditMode = false; // Add this near the top of your property handler block
 
@@ -335,6 +340,44 @@ window.myPropertyHandlers.push(function(properties) {
     toggleWidget(properties.show_media, 'widget-media');
     toggleWidget(properties.show_ascii, 'widget-ascii');
     toggleWidget(properties.show_lyrics, 'widget-lyrics');
+
+    // bg
+    if (properties.bg_color) {
+        let c = properties.bg_color.value.split(' ');
+        let r = Math.round(c[0] * 255);
+        let g = Math.round(c[1] * 255);
+        let b = Math.round(c[2] * 255);
+        document.body.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+    }
+
+    let updateBg = false;
+    
+    if (properties.bg_image) {
+        currentBgImage = properties.bg_image.value;
+        updateBg = true;
+    }
+    if (properties.bg_dim) {
+        currentBgDim = properties.bg_dim.value / 100; // Convert 60 to 0.6
+        updateBg = true;
+    }
+
+    if (updateBg) {
+        if (currentBgImage) {
+            // Fix the path slashes for Windows
+            let safePath = currentBgImage.replace(/\\/g, '/');
+            // Create a black overlay using the dim slider value
+            let overlay = `rgba(0, 0, 0, ${currentBgDim})`;
+            
+            // Apply the image with the overlay on top
+            document.body.style.backgroundImage = `linear-gradient(${overlay}, ${overlay}), url('file:///${safePath}')`;
+            document.body.style.backgroundSize = 'cover';
+            document.body.style.backgroundPosition = 'center';
+            document.body.style.backgroundRepeat = 'no-repeat';
+        } else {
+            // Remove the image if the user clears the file picker
+            document.body.style.backgroundImage = 'none';
+        }
+    }
 });
 
 const track_info = {
