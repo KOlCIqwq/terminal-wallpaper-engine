@@ -182,6 +182,15 @@ function fetchSystemSpecs() {
                 updatePlayingBar(0, 0);
             }
 
+            const playButton = document.getElementById('btn-play');
+            if (playButton) {
+                if (data.media_status === 'Playing') {
+                    playButton.textContent = "[ || ]"; 
+                } else {
+                    playButton.textContent = "[ ▶ ]"; 
+                }
+            }
+
             const dataToSave = {
                 os: data.os,
                 cpu_name: data.cpu_name,
