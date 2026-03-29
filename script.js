@@ -50,7 +50,7 @@ function updatePlayingBar(current, total) {
     const barElement = document.getElementById('playing-bar');
     if (!barElement) return;
 
-    const barLength = 78; 
+    const barLength = 67; 
     
     if (!total || total <= 0) {
         barElement.textContent = "Playing: " + "-".repeat(barLength);
@@ -180,7 +180,21 @@ if (!window.wallpaperPropertyListener) {
     };
 }
 
+let lastResetToggleValue = null;
 window.myPropertyHandlers.push(function(properties) {
+    let isEditMode = false; // Add this near the top of your property handler block
+
+    // Toggle Edit Mode
+    if (properties.edit_mode !== undefined) {
+        isEditMode = properties.edit_mode.value;
+        
+        if (isEditMode) {
+            document.body.classList.add('edit-mode-active');
+        } else {
+            document.body.classList.remove('edit-mode-active');
+        }
+    }
+
     if (properties.username) {
         const value = properties.username.value.trim();
         if (value != ""){
@@ -244,6 +258,39 @@ window.myPropertyHandlers.push(function(properties) {
             document.getElementById("next-weather-dates").innerText = "[ ... ]";
         }
     }
+
+    if (properties.reset_layout) {
+        let currentValue = properties.reset_layout.value;
+        
+        // If this is the very first time the wallpaper loads, just record the value and do nothing
+        if (lastResetToggleValue === null) {
+            lastResetToggleValue = currentValue;
+        } 
+        // changed from last
+        else if (currentValue !== lastResetToggleValue) {
+            resetAllWidgets();
+            lastResetToggleValue = currentValue;
+        }
+    }
+
+    // controls the toggle of each widget
+    const toggleWidget = (property, elementId) => {
+        if (property !== undefined) {
+            const widget = document.getElementById(elementId);
+            if (widget) {
+                // If true, remove inline display style so it shows. If false, hide it.
+                widget.style.display = property.value ? "" : "none";
+            }
+        }
+    };
+
+    // Check each of the 6 toggles
+    toggleWidget(properties.show_sys, 'widget-sys');
+    toggleWidget(properties.show_weather, 'widget-weather');
+    toggleWidget(properties.show_vis, 'widget-vis');
+    toggleWidget(properties.show_media, 'widget-media');
+    toggleWidget(properties.show_ascii, 'widget-ascii');
+    toggleWidget(properties.show_lyrics, 'widget-lyrics');
 });
 
 const track_info = {
@@ -251,51 +298,55 @@ const track_info = {
     artist: '',
 }
 
-window.wallpaperRegisterMediaPropertiesListener((event) => {
-    document.getElementById('title').textContent = event.title || "Unknown Title";
-    document.getElementById('artist').textContent = event.artist || "Unknown Artist";
-    document.getElementById('album').textContent = event.albumTitle || "Unknown Album";
+if (window.wallpaperRegisterMediaPropertiesListener) {
+    window.wallpaperRegisterMediaPropertiesListener((event) => {
+        document.getElementById('title').textContent = event.title || "Unknown Title";
+        document.getElementById('artist').textContent = event.artist || "Unknown Artist";
+        document.getElementById('album').textContent = event.albumTitle || "Unknown Album";
 
-    if (track_info.title === event.title && track_info.artist === event.artist) {
-        return; 
-    }
+        if (track_info.title === event.title && track_info.artist === event.artist) {
+            return; 
+        }
 
-    track_info.title = event.title;
-    track_info.artist = event.artist;
-});
+        track_info.title = event.title;
+        track_info.artist = event.artist;
+    });
+}
 
-window.wallpaperRegisterAudioListener((audioArray) => {
-    let totalSum = 0;
-    let currentMax = 0; // We need the peak to normalize the others
+if (window.wallpaperRegisterAudioListener) {
+    window.wallpaperRegisterAudioListener((audioArray) => {
+        let totalSum = 0;
+        let currentMax = 0; // We need the peak to normalize the others
 
-    for (let i = 0; i < 128; i++) {
-        let val = audioArray[i];
-        totalSum += val;
-        if (val > currentMax) currentMax = val;
-    }
+        for (let i = 0; i < 128; i++) {
+            let val = audioArray[i];
+            totalSum += val;
+            if (val > currentMax) currentMax = val;
+        }
 
-    let volume = totalSum / 128;
+        let volume = totalSum / 128;
 
-    let normalizer = 1;
-    if (currentMax > 0.05) {
-        normalizer = 1 / currentMax;
-    }
+        let normalizer = 1;
+        if (currentMax > 0.05) {
+            normalizer = 1 / currentMax;
+        }
 
-    // Wallpaper Engine returns 128 bins (0-64 = left, 64-127 = right)
-    let bass = getAverage(audioArray, 0, 10) * normalizer;
-    let mid = getAverage(audioArray, 11, 40) * normalizer;
-    let treble = getAverage(audioArray, 41, 63) * normalizer;
+        // Wallpaper Engine returns 128 bins (0-64 = left, 64-127 = right)
+        let bass = getAverage(audioArray, 0, 10) * normalizer;
+        let mid = getAverage(audioArray, 11, 40) * normalizer;
+        let treble = getAverage(audioArray, 41, 63) * normalizer;
 
-    updatePercent('bass-perc',bass);
-    updatePercent('mid-perc',mid);
-    updatePercent('treble-perc',treble);
-    updatePercent('volume-perc', volume * 2);
+        updatePercent('bass-perc',bass);
+        updatePercent('mid-perc',mid);
+        updatePercent('treble-perc',treble);
+        updatePercent('volume-perc', volume * 2);
 
-    updateBar('bar-bass', bass);
-    updateBar('bar-mid', mid);
-    updateBar('bar-treble', treble);
-    updateBar('bar-volume', volume * 2);
-});
+        updateBar('bar-bass', bass);
+        updateBar('bar-mid', mid);
+        updateBar('bar-treble', treble);
+        updateBar('bar-volume', volume * 2);
+    });
+}
 
 function getAverage(array, start, end) {
     let sum = 0;
@@ -339,3 +390,133 @@ setInterval(() => {
     }
     
 }, 1000);
+
+/* localStorage.clear();  */
+
+const widgets = document.querySelectorAll('.draggable-widget');
+let activeWidget = null;
+let startX, startY, initialLeft, initialTop;
+let isTicking = false; 
+
+// Initial spacing for brand new loads
+let defaultTop = 40;
+
+// Load saved positions for all widgets
+widgets.forEach((widget) => {
+    const savedPos = localStorage.getItem('pos_' + widget.id);
+    if (savedPos) {
+        const pos = JSON.parse(savedPos);
+        widget.style.left = pos.left;
+        widget.style.top = pos.top;
+    } else {
+        widget.style.left = "40px";
+        widget.style.top = defaultTop + "px"; 
+        defaultTop += 220; 
+    }
+
+    widget.addEventListener('mousedown', (e) => {
+        // locked mode
+        if (!document.body.classList.contains('edit-mode-active')) return;
+
+        activeWidget = widget;
+        startX = e.clientX;
+        startY = e.clientY;
+        
+        const rect = widget.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+        
+        widgets.forEach(w => w.style.zIndex = 1);
+        widget.style.zIndex = 10;
+    });
+});
+
+// Move the widget 
+document.addEventListener('mousemove', (e) => {
+    if (!activeWidget) return;
+
+    if (!isTicking) {
+        window.requestAnimationFrame(() => {
+            if(!activeWidget) { isTicking = false; return; } // Safety check
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            
+            activeWidget.style.left = `${initialLeft + dx}px`;
+            activeWidget.style.top = `${initialTop + dy}px`;
+            
+            isTicking = false;
+        });
+        isTicking = true;
+    }
+});
+
+// Save the position (Attached to WINDOW, not document)
+window.addEventListener('mouseup', () => {
+    if (activeWidget) {
+        localStorage.setItem('pos_' + activeWidget.id, JSON.stringify({
+            left: activeWidget.style.left,
+            top: activeWidget.style.top
+        }));
+        activeWidget = null;
+    }
+});
+
+// If mouse leaves the desktop entirely, drop the widget
+document.addEventListener('mouseleave', () => {
+    activeWidget = null;
+});
+
+// reset
+/* const resetBtn = document.getElementById('reset-btn');
+
+if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+        let resetTop = 40;
+        
+        widgets.forEach((widget) => {
+            // Move it back to the left side physically
+            widget.style.left = "40px";
+            widget.style.top = resetTop + "px";
+            
+            // Add the spacing for the next widget in the list
+            resetTop += 220; 
+            
+            // Delete its custom saved position from memory
+            localStorage.removeItem('pos_' + widget.id);
+        });
+    });
+}
+ */
+
+function resetAllWidgets() {
+    let resetTop = 40; 
+    const widgets = document.querySelectorAll('.draggable-widget');
+    
+    widgets.forEach((widget) => {
+        // Move it back to the left side
+        widget.style.left = "40px";
+        widget.style.top = resetTop + "px";
+        resetTop += 220; 
+        
+        // Delete memory
+        localStorage.removeItem('pos_' + widget.id);
+    });
+}
+//media control
+const btnPrev = document.getElementById('btn-prev');
+const btnPlay = document.getElementById('btn-play');
+const btnNext = document.getElementById('btn-next');
+
+if (btnPrev && btnPlay && btnNext) {
+    btnPrev.addEventListener('click', () => {
+        fetch('http://127.0.0.1:25555/media/prev').catch(e => console.log(e));
+    });
+    
+    btnPlay.addEventListener('click', () => {
+        fetch('http://127.0.0.1:25555/media/playpause').catch(e => console.log(e));
+    });
+    
+    btnNext.addEventListener('click', () => {
+        fetch('http://127.0.0.1:25555/media/next').catch(e => console.log(e));
+    });
+}

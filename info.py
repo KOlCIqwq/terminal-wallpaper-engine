@@ -12,6 +12,7 @@ import asyncio
 import datetime
 import time
 import random
+import ctypes
 
 try:
     from winsdk.windows.media.control import GlobalSystemMediaTransportControlsSessionManager
@@ -146,7 +147,7 @@ def monitor():
     startup = True
     
     while True:
-        interval = random.uniform(0.55,0.8)
+        interval = random.uniform(0.7,0.88)
         
         cpu = psutil.cpu_percent(interval = interval)
         gpu_stats = gpustat.GPUStatCollection.new_query()
@@ -213,20 +214,51 @@ def monitor():
         
         #print(system_state)
         
+'''
+Handle the play/skip music commands that it receives
+'''
+def media_command(command):
+    # Windows Virtual Key Codes for Media Buttons
+    if command == "playpause":
+        VK_CODE = 0xB3 
+    elif command == "next":
+        VK_CODE = 0xB0 
+    elif command == "prev":
+        VK_CODE = 0xB1 
+    else:
+        return
+        
+    # Simulate pressing the hardware key down, then releasing it
+    ctypes.windll.user32.keybd_event(VK_CODE, 0, 0, 0) # Key down
+    ctypes.windll.user32.keybd_event(VK_CODE, 0, 2, 0) # Key up
+            
+        
 class RequestHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         pass # Silence console logs
 
     def do_GET(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
         if self.path == '/specs':
-            self.send_response(200)
             self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             # Send the current state of the global dictionary
             self.wfile.write(json.dumps(system_state).encode())
+        elif self.path == '/media/playpause':
+            self.end_headers()
+            media_command("playpause")
+            
+        elif self.path == '/media/next':
+            self.end_headers()
+            media_command("next")
+            
+        elif self.path == '/media/prev':
+            self.end_headers()
+            media_command("prev")
         else:
             self.send_response(404)
+            self.end_headers()
 
 def run_server():
     t_static = threading.Thread(target=get_static, daemon=True)

@@ -6,8 +6,8 @@
     <title>Terminal Wallpaper</title>
 </head>
 <body>
-    <div class="terminal-container">
-        
+
+    <div class="draggable-widget" id="widget-sys">
         <div class="sys-block">
             <div class="info-col">
                 <div class="white"><span id="username" class="white">user@System</span></div>
@@ -23,8 +23,9 @@
                 <div class="line"><span class="label"></span><span id="disk-bar" class="white"></span></div>
             </div>
         </div>
+    </div>
 
-        <div class="spacer"></div>
+    <div class="draggable-widget" id="widget-weather">
         <div class="clock-row">
             <span class="yellow">Clock 0</span>
             <span class="white">&nbsp;&nbsp;[LOCAL] Today&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span id="date">YYYY-MM-DD</span> | <span id="clock">00:00:00</span></span>
@@ -33,12 +34,10 @@
         <div class="gray divider">--------------------------------------------------------------------------------</div>
         
         <div class="spacer"></div>
-        <span class="blue label" id = "city-name">Unknown</span>
+        <span class="blue label" id="city-name">Unknown</span>
         <div class="line">
             <span class="yellow vis-label">Today:</span>
-            <span class="white" id="today-weather">
-                [ ... ]
-            </span>
+            <span class="white" id="today-weather">[ ... ]</span>
         </div>
         <div class="line">
             <span class="yellow vis-label">Hourly:</span>
@@ -52,18 +51,20 @@
         <div class="line">
             <span class="yellow vis-label"></span> <span class="white" id="next-weather-dates">[ ... ]</span>
         </div>
+    </div>
 
+    <div class="draggable-widget" id="widget-vis">
         <div class="gray divider">--------------------------------------------------------------------------------</div>
-
         <div class="vis-block">
             <div class="line"><span class="white vis-label">Bass:</span><span class="yellow">[<span id="bar-bass">..........</span>] <span id="bass-perc">0%</span></span></div>
             <div class="line"><span class="white vis-label">Mid:</span><span class="yellow">[<span id="bar-mid">..........</span>] <span id="mid-perc">0%</span></span></div>
             <div class="line"><span class="white vis-label">Treble:</span><span class="yellow">[<span id="bar-treble">..........</span>] <span id="treble-perc">0%</span></span></div>
             <div class="line"><span class="white vis-label">Volume:</span><span class="yellow">[<span id="bar-volume">..........</span>] <span id="volume-perc">0%</span></span></div>
         </div>
+    </div>
 
+    <div class="draggable-widget" id="widget-media">
         <div class="gray divider">--------------------------------------------------------------------------------</div>
-        
         <div class="media-table">
             <div class="media-header white">
                 <div class="col">Artist</div>
@@ -84,12 +85,22 @@
             <span id="duration">[ - / - ]</span>
         </div>
 
+        <div class="media-controls">
+            <button id="btn-prev" class="media-btn">[ &lt;&lt; ]</button>
+            <button id="btn-play" class="media-btn">[ || ]</button>
+            <button id="btn-next" class="media-btn">[ &gt;&gt; ]</button>
+        </div>
+    </div>
+
+    <div class="draggable-widget" id="widget-ascii">
         <div class="ascii-wrapper">
             <img id="album-art" src="" style="display:none;">
             <canvas id="canvas" style="display: none;"></canvas>
             <pre id="asciiOutput"></pre>
         </div>
+    </div>
 
+    <div class="draggable-widget" id="widget-lyrics">
         <div class="spacer"></div>
         <div class="gray">LYRICS_MODULE.EXE</div>
         <div class="gray divider">--------------------------------------------------------------------------------</div>
@@ -97,12 +108,14 @@
         <div id="lyrics-container" class="lyrics-content">
             <span class="dim">Waiting for input stream...</span>
         </div>
-
     </div>
+
+    <!-- <button id="reset-btn" class="terminal-btn">[RESET]</button> -->
 
     <script src="weatherFetch.js"></script>
     <script src="imageASCII.js"></script>
     <script src="lyricsFectch.js"></script>
     <script src="script.js"></script>
+    
 </body>
 </html>

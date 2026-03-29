@@ -80,8 +80,65 @@
                 "min": 2,
                 "max": 15,
                 "value": 8
+            },
+            "layout_group": {
+                "order": 300,
+                "text": "Layout Settings",
+                "type": "group"
+            },
+            "edit_mode": {
+                "order": 301,
+                "text": "Edit Mode",
+                "type": "bool",
+                "value": false
+            },
+            "reset_layout": {
+                "order": 302,
+                "text": "Reset Layout (Toggle to trigger)",
+                "type": "bool",
+                "value": false
+            },
+            "visibility_group": {
+                "order": 400,
+                "text": "Widget Visibility",
+                "type": "group"
+            },
+            "show_sys": {
+                "order": 401,
+                "text": "Show System Info",
+                "type": "bool",
+                "value": true
+            },
+            "show_weather": {
+                "order": 402,
+                "text": "Show Clock & Weather",
+                "type": "bool",
+                "value": true
+            },
+            "show_vis": {
+                "order": 403,
+                "text": "Show Audio Visualizer",
+                "type": "bool",
+                "value": true
+            },
+            "show_media": {
+                "order": 404,
+                "text": "Show Media Player",
+                "type": "bool",
+                "value": true
+            },
+            "show_ascii": {
+                "order": 405,
+                "text": "Show ASCII Art",
+                "type": "bool",
+                "value": true
+            },
+            "show_lyrics": {
+                "order": 406,
+                "text": "Show Lyrics",
+                "type": "bool",
+                "value": true
             }
-
         },
         "supportsaudioprocessing" : true
     },

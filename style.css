@@ -1,17 +1,99 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden; /*kills the scrollbars */
+}
+
 body {
     background-color: #050505;
     color: #cccccc;
     font-family: 'Consolas', 'Courier New', monospace;
     font-size: 15px;
-    margin: 40px;
     line-height: 1.3;
-    overflow-x: hidden;
+}
+
+.draggable-widget {
+    position: absolute;
+    width: max-content; 
+    max-width: 95vw;
+    padding: 15px; 
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    transition: border 0.2s, background-color 0.2s;
+}
+
+/*unlocked*/
+.edit-mode-active .draggable-widget {
+    cursor: grab;
+    border: 1px dashed #555555;
+    background-color: rgba(255, 255, 255, 0.02);
+}
+
+.edit-mode-active .draggable-widget:active {
+    cursor: grabbing;
+    z-index: 100;
+}
+
+/*reset*/
+.terminal-btn {
+    position: absolute;
+    bottom: 80px;
+    right: 40px;
+    background: #050505;
+    color: #555555;
+    border: 1px solid #555555;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 14px;
+    padding: 8px 15px;
+    cursor: pointer;
+    z-index: 1000;
+    transition: all 0.2s;
+}
+
+.terminal-btn:hover {
+    color: #d1d1d1;
+    border-color: #d1d1d1;
+}
+
+.terminal-btn:active {
+    color: #e5c07b; 
+    border-color: #e5c07b;
 }
 
 .terminal-container {
     max-width: 900px;
     display: flex;
     flex-direction: column;
+}
+
+/*play-pause-skip*/
+.media-controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.media-btn {
+    background: transparent;
+    color: #d1d1d1;
+    border: none;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 15px;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.1s;
+}
+
+.media-btn:hover {
+    color: #ffffff;
+    font-weight: bold;
+}
+
+.media-btn:active {
+    color: #4af626;
 }
 
 .blue { color: #3b8eea; }

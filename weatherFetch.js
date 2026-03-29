@@ -19,16 +19,15 @@ function getWeather(lon,lat){
         if (startIndex === -1) startIndex = 0;
 
         let today = parseWeather(data.daily.weather_code[0]);
-        let nowTemp = Math.round(data.hourly.temperature_2m[startIndex - 1]);
-        let nowPrecip = data.hourly.precipitation[startIndex - 1];
-        let nowTimeStr = new Date(data.hourly.time[startIndex - 1]).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        
+        let nowTemp = Math.round(data.hourly.temperature_2m[startIndex]);
+        let nowPrecip = data.hourly.precipitation[startIndex];
+        let nowTimeStr = new Date(data.hourly.time[startIndex]).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
         document.getElementById("today-weather").innerText = `[ ${today.icon} ${today.desc}; ${nowTimeStr}: ${nowTemp}°C / ${nowPrecip}mm]`;
 
-        if (startIndex === -1) startIndex = 0;
-
         let hourlyBlocks = [];
-        for (let i = startIndex; i < startIndex + 4; i++) {
+        for (let i = startIndex + 1; i < startIndex + 5; i++) {
             let timeStr = new Date(data.hourly.time[i]).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             let temp = Math.round(data.hourly.temperature_2m[i]);
             let precip = data.hourly.precipitation[i];
