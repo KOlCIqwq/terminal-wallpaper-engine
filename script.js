@@ -19,6 +19,7 @@ const position = {
 let lastResetToggleValue = null;
 let currentBgImage = "";
 let currentBgDim = 0.6;
+let lastSeekTime = 0;
 
 function loadCachedSpecs(){
     const cached = localStorage.getItem(CACHE_KEY)
@@ -108,6 +109,16 @@ if (playingBar) {
         if (percent > 1) percent = 1;
         
         const targetSeconds = currentDuration * percent;
+
+        lastSeekTime = Date.now();
+
+        updatePlayingBar(targetSeconds, currentDuration);
+        document.getElementById('duration').textContent = `[${formatTime(targetSeconds)} / ${formatTime(currentDuration)}]`;
+        
+        // Instantly jump the lyrics
+        if (typeof syncLyrics === 'function') {
+            syncLyrics(targetSeconds);
+        }
         
         fetch(`http://127.0.0.1:25555/media/seek?pos=${targetSeconds}`).catch(e => console.log(e));
     });
@@ -164,27 +175,29 @@ function fetchSystemSpecs() {
                 getLyrics(data.media_title, data.media_artist);
             }
 
-            if (data.media_position) {
-                // Ensure position is a number (seconds)
-                syncLyrics(parseFloat(data.media_position));
-            }
+            if (Date.now() - lastSeekTime > 3300) {
+                if (data.media_position) {
+                    // Ensure position is a number (seconds)
+                    syncLyrics(parseFloat(data.media_position));
+                }
 
-            /*let cur_position = formatTime(data.media_position)
-            let cur_duration = formatTime(data.media_duration)
+                /*let cur_position = formatTime(data.media_position)
+                let cur_duration = formatTime(data.media_duration)
 
-            document.getElementById('duration').textContent = `${cur_position} / ${cur_duration}`; */
+                document.getElementById('duration').textContent = `${cur_position} / ${cur_duration}`; */
 
-            if (data.media_position !== undefined && data.media_duration !== undefined) {
-                /* currentMediaDuration = data.media_duration; */
+                if (data.media_position !== undefined && data.media_duration !== undefined) {
+                    /* currentMediaDuration = data.media_duration; */
 
-                let cur_position = formatTime(data.media_position);
-                let cur_duration = formatTime(data.media_duration);
+                    let cur_position = formatTime(data.media_position);
+                    let cur_duration = formatTime(data.media_duration);
 
-                document.getElementById('duration').textContent = `[${cur_position} / ${cur_duration}]`;
-                updatePlayingBar(data.media_position, data.media_duration);
-            } else {
-                document.getElementById('duration').textContent = "[ - / - ]";
-                updatePlayingBar(0, 0);
+                    document.getElementById('duration').textContent = `[${cur_position} / ${cur_duration}]`;
+                    updatePlayingBar(data.media_position, data.media_duration);
+                } else {
+                    document.getElementById('duration').textContent = "[ - / - ]";
+                    updatePlayingBar(0, 0);
+                }
             }
 
             const playButton = document.getElementById('btn-play');
