@@ -1,0 +1,3 @@
+gpustat
+wmi
+winsdk
