@@ -48,18 +48,25 @@ system_state = {
 
 PORT = 25555
 
+# Cache the media manager globally
+media_manager = None
+
 async def get_media_info():
-    # Connect to Windows Media OSD
-    sessions = await GlobalSystemMediaTransportControlsSessionManager.request_async()
+    global media_manager
     
-    current_session = sessions.get_current_session()
+    # Only ask Windows for the manager once
+    if media_manager is None:
+        try:
+            media_manager = await GlobalSystemMediaTransportControlsSessionManager.request_async()
+        except Exception:
+            return system_state # Fallback if Windows media is unavailable
+    
+    current_session = media_manager.get_current_session()
     
     if current_session:
         playback_info = current_session.get_playback_info()
-        if playback_info:
-            status = playback_info.playback_status # 4=Playing, 5=Paused
+        status = playback_info.playback_status if playback_info else 0 # 4=Playing, 5=Paused
         
-        # Get Track Info
         try:
             props = await current_session.try_get_media_properties_async()
             title = props.title
@@ -68,16 +75,9 @@ async def get_media_info():
             title = "Unknown"
             artist = "Unknown"
 
-        # Get Timeline (Position/Duration)
         timeline = current_session.get_timeline_properties()
-        
-        position = 0
-        duration = 0
-        
-        if timeline:
-            # winsdk returns datetime.timedelta objects
-            position = timeline.position.total_seconds()
-            duration = timeline.end_time.total_seconds()
+        position = timeline.position.total_seconds() if timeline else 0
+        duration = timeline.end_time.total_seconds() if timeline else 0
 
         return {
             "media_title": title,
@@ -114,13 +114,8 @@ def get_static():
     gpu_info = "Unknown GPU"
     try:
         gpus = w.Win32_VideoController()
-        valid_gpus = []
-        for gpu in gpus:
-            # Filter out some generic drivers if necessary
-            valid_gpus.append(gpu.Name)
-        
+        valid_gpus = [gpu.Name for gpu in gpus]
         if valid_gpus:
-            # Join multiple GPUs with a separator
             gpu_info = " + ".join(valid_gpus)
     except:
         gpu_info = "Error retrieving GPU"
@@ -137,9 +132,11 @@ def get_static():
     system_state['disk_total'] = disk_total
     system_state['ram_total'] = ram_info
 
-
 def monitor():
     global system_state
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     
     last_track_title = ""
     cur_pos = 0.0
@@ -147,55 +144,44 @@ def monitor():
     reset = False
     startup = True
     
+    # "Prime" the CPU reader outside the loop (the first call always returns 0)
+    psutil.cpu_percent(interval=None)
+    
+    tick = 0
+    
     while True:
         interval = random.uniform(0.7,0.88)
+        time.sleep(interval)
         
-        cpu = psutil.cpu_percent(interval = interval)
-        gpu_stats = gpustat.GPUStatCollection.new_query()
-        for gpu in gpu_stats.gpus:
-            # Later adapt to multiple gpu
-            gpu_per = gpu.utilization 
-        mem = psutil.virtual_memory()
-        ram_p = mem.percent
-        ram_u = round(mem.used / (1024.0 ** 3) , 1)
-        disk_per = psutil.disk_usage('/').percent
-        disk_usage = f"{round(psutil.disk_usage('/').used / (1024.0 ** 3), 1)} GB"
+        # Non-blocking CPU check
+        system_state['cpu_percent'] = psutil.cpu_percent(interval=None)
         
         try:
-            media_data = asyncio.run(get_media_info())
+            media_data = loop.run_until_complete(get_media_info())
         except:
             media_data = {}
         
-        status = media_data['media_status'] # "Playing" or "Paused"
-        title = media_data['media_title']
-        skipped_position = media_data['media_position']
+        status = media_data.get('media_status', 'Stopped')
+        title = media_data.get('media_title', '')
+        skipped_position = media_data.get('media_position', 0)
         
         if startup:
             prev_skip_position = skipped_position + 0.1
             last_track_title = title
             startup = False
         
-        '''
-        1. Skip on current -> skipped_position will change on where user landed
-        2. User skip track -> skipped_position += 5 (?) random, but title != last_track_title, so reset cur_pos
-        3. User skip after skipping track -> skipped_postion != prev_skip_position, since we already registered title = last_track_title. Don't reset
-        '''
-        
         if abs(prev_skip_position - skipped_position) > 0.0000001:
             prev_skip_position = skipped_position
             if title == last_track_title:
-                # case 1 and case 3
                 if reset == False:
                     cur_pos = skipped_position
                 else:
                     reset = False
         
-        # Track change
         if title != last_track_title:
             last_track_title = title
             cur_pos = 0
             reset = True
-        # Paused
         elif status == 'Paused':
             pass
         else:
@@ -203,23 +189,32 @@ def monitor():
         
         media_data['media_position'] = cur_pos
         system_state.update(media_data)
+
+        # We only run the expensive hardware checks every 3rd loop
+        if tick % 3 == 0:
+            try:
+                gpu_stats = gpustat.GPUStatCollection.new_query()
+                system_state['gpu_percent'] = gpu_stats.gpus[0].utilization if gpu_stats.gpus else 0
+            except:
+                pass
+                
+            mem = psutil.virtual_memory()
+            system_state['ram_percent'] = mem.percent
+            system_state['ram_used'] = round(mem.used / (1024.0 ** 3) , 1)
         
-        print(cur_pos)
-        
-        system_state['cpu_percent'] = cpu
-        system_state['gpu_percent'] = gpu_per
-        system_state['ram_percent'] = ram_p
-        system_state['ram_used'] = ram_u
-        system_state['disk_percent'] = disk_per
-        system_state['disk_used'] = disk_usage
-        
-        #print(system_state)
-        
-'''
-Handle the play/skip music commands that it receives
-'''
+        # check the disk every minute
+        if tick % 75 == 0:
+            try:
+                system_state['disk_percent'] = psutil.disk_usage('/').percent
+                system_state['disk_used'] = f"{round(psutil.disk_usage('/').used / (1024.0 ** 3), 1)} GB"
+            except:
+                pass 
+            
+        tick += 1
+        if tick > 300: 
+            tick = 0 # Reset counter so it doesn't grow infinitely
+
 def media_command(command):
-    # Windows Virtual Key Codes for Media Buttons
     if command == "playpause":
         VK_CODE = 0xB3 
     elif command == "next":
@@ -229,28 +224,26 @@ def media_command(command):
     else:
         return
         
-    # Simulate pressing the hardware key down, then releasing it
-    ctypes.windll.user32.keybd_event(VK_CODE, 0, 0, 0) # Key down
-    ctypes.windll.user32.keybd_event(VK_CODE, 0, 2, 0) # Key up
+    ctypes.windll.user32.keybd_event(VK_CODE, 0, 0, 0) 
+    ctypes.windll.user32.keybd_event(VK_CODE, 0, 2, 0) 
         
 async def media_seek(position_seconds):
-    sessions = await GlobalSystemMediaTransportControlsSessionManager.request_async()
-    current_session = sessions.get_current_session()
+    global media_manager
+    if media_manager is None:
+        media_manager = await GlobalSystemMediaTransportControlsSessionManager.request_async()
+        
+    current_session = media_manager.get_current_session()
     
     if current_session:
         try:
-            # 1 second = 10,000,000 ticks. winsdk strictly requires an Int64 integer.
             ticks = int(position_seconds * 10000000)
-            print(f"--> [DEBUG] Seeking to {position_seconds} seconds...")
-            
-            # Send the command directly
             await current_session.try_change_playback_position_async(ticks)
         except Exception as e:
             print(f"--> [DEBUG] Seek failed: {e}")
         
 class RequestHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
-        pass # Silence console logs
+        pass
 
     def do_GET(self):
         parsed_path = urlparse(self.path)
@@ -285,12 +278,14 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             
-            # Read the target time from the URL
             query_components = parse_qs(parsed_path.query)
             if 'pos' in query_components:
                 try:
                     pos_sec = float(query_components['pos'][0])
-                    asyncio.run(media_seek(pos_sec))
+                    # Create a quick loop to execute the seek
+                    seek_loop = asyncio.new_event_loop()
+                    seek_loop.run_until_complete(media_seek(pos_sec))
+                    seek_loop.close()
                 except ValueError:
                     pass
         else:
@@ -304,15 +299,11 @@ def run_server():
     t_monitor = threading.Thread(target=monitor, daemon=True)
     t_monitor.start()
     
-    # Start the server
-    print(f"Server listening on http://127.0.0.1:{PORT}/specs")
     server = http.server.HTTPServer(('127.0.0.1', PORT), RequestHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("Stopping server...")
         server.server_close()
-
 
 if __name__ == '__main__':
     run_server()
