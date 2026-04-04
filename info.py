@@ -50,6 +50,8 @@ PORT = 25555
 
 # Cache the media manager globally
 media_manager = None
+seek_target = None
+seek_time = 0
 
 async def get_media_info():
     global media_manager
@@ -133,7 +135,7 @@ def get_static():
     system_state['ram_total'] = ram_info
 
 def monitor():
-    global system_state
+    global system_state, seek_target, seek_time
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -144,16 +146,21 @@ def monitor():
     reset = False
     startup = True
     
-    # "Prime" the CPU reader outside the loop (the first call always returns 0)
+    # "Prime" the CPU reader outside the loop
     psutil.cpu_percent(interval=None)
     
     tick = 0
+    last_tick_time = time.time()
     
     while True:
-        interval = random.uniform(0.7,0.88)
-        time.sleep(interval)
+        # Check media fast
+        time.sleep(0.2)
         
-        # Non-blocking CPU check
+        current_time = time.time()
+        dt = current_time - last_tick_time
+        last_tick_time = current_time
+        
+        # CPU is lightweight, can be checked fast
         system_state['cpu_percent'] = psutil.cpu_percent(interval=None)
         
         try:
@@ -165,19 +172,30 @@ def monitor():
         title = media_data.get('media_title', '')
         skipped_position = media_data.get('media_position', 0)
         
+        # Instantly apply custom seek from the frontend
+        if seek_target is not None:
+            cur_pos = seek_target
+            seek_target = None
+            
         if startup:
             prev_skip_position = skipped_position + 0.1
             last_track_title = title
             startup = False
-        
+            
+        # Block the Windows API from sending old data for 4s after seeking
+        ignore_smtc = (current_time - seek_time < 4.0)
+
+        # always track api  
         if abs(prev_skip_position - skipped_position) > 0.0000001:
-            prev_skip_position = skipped_position
-            if title == last_track_title:
-                if reset == False:
-                    cur_pos = skipped_position
-                else:
-                    reset = False
-        
+            prev_skip_position = skipped_position # Always keep track of what Windows says
+            
+            if not ignore_smtc: # Only allow it to drag the clock if we are NOT in cooldown
+                if title == last_track_title:
+                    if reset == False:
+                        cur_pos = skipped_position
+                    else:
+                        reset = False
+            
         if title != last_track_title:
             last_track_title = title
             cur_pos = 0
@@ -185,12 +203,13 @@ def monitor():
         elif status == 'Paused':
             pass
         else:
-            cur_pos += 1
+            cur_pos += dt
         
         media_data['media_position'] = cur_pos
         system_state.update(media_data)
-
-        # We only run the expensive hardware checks every 3rd loop
+        
+        print(f"[Python] Windows API: {skipped_position:.2f}s | Python Sending: {cur_pos:.2f}s | Status: {status} | Ignoring API: {ignore_smtc}")
+        # check gpu and ram every 3rd loop 
         if tick % 3 == 0:
             try:
                 gpu_stats = gpustat.GPUStatCollection.new_query()
@@ -201,7 +220,7 @@ def monitor():
             mem = psutil.virtual_memory()
             system_state['ram_percent'] = mem.percent
             system_state['ram_used'] = round(mem.used / (1024.0 ** 3) , 1)
-        
+            
         # check the disk every minute
         if tick % 75 == 0:
             try:
@@ -211,8 +230,8 @@ def monitor():
                 pass 
             
         tick += 1
-        if tick > 300: 
-            tick = 0 # Reset counter so it doesn't grow infinitely
+        if tick > 1000: 
+            tick = 0
 
 def media_command(command):
     if command == "playpause":
@@ -282,6 +301,9 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
             if 'pos' in query_components:
                 try:
                     pos_sec = float(query_components['pos'][0])
+                    global seek_target, seek_time
+                    seek_target = pos_sec
+                    seek_time = time.time()
                     # Create a quick loop to execute the seek
                     seek_loop = asyncio.new_event_loop()
                     seek_loop.run_until_complete(media_seek(pos_sec))

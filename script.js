@@ -20,6 +20,10 @@ let lastResetToggleValue = null;
 let currentBgImage = "";
 let currentBgDim = 0.6;
 let lastSeekTime = 0;
+let optimisticPosition = 0;
+let optimisticStatus = null;
+let lastPlayPauseTime = 0;
+let currentMediaPosition = 0;
 
 function loadCachedSpecs(){
     const cached = localStorage.getItem(CACHE_KEY)
@@ -111,6 +115,7 @@ if (playingBar) {
         const targetSeconds = currentDuration * percent;
 
         lastSeekTime = Date.now();
+        optimisticPosition = targetSeconds;
 
         updatePlayingBar(targetSeconds, currentDuration);
         document.getElementById('duration').textContent = `[${formatTime(targetSeconds)} / ${formatTime(currentDuration)}]`;
@@ -131,6 +136,18 @@ function fetchSystemSpecs() {
             return response.json();
         })
         .then(data => {
+            if (optimisticStatus !== null) {
+                // If the server finally agrees with us (and at least 1 sec passed)
+                if (data.media_status === optimisticStatus && (Date.now() - lastPlayPauseTime > 1000)) {
+                    optimisticStatus = null; // Server caught up, release the override!
+                } else if (Date.now() - lastPlayPauseTime < 8000) { 
+                    // Give the server up to 8 seconds to catch up
+                    data.media_status = optimisticStatus; 
+                } else {
+                    // Failsafe: 8 seconds passed and server still disagrees. Give up.
+                    optimisticStatus = null; 
+                }
+            }
             // Static Info
             if (data.os) document.getElementById('os').textContent = data.os;
             
@@ -175,28 +192,45 @@ function fetchSystemSpecs() {
                 getLyrics(data.media_title, data.media_artist);
             }
 
-            if (Date.now() - lastSeekTime > 3300) {
-                if (data.media_position) {
-                    // Ensure position is a number (seconds)
-                    syncLyrics(parseFloat(data.media_position));
-                }
+            let isSeeking = (Date.now() - lastSeekTime < 3000);
+            let isOverriding = (optimisticStatus !== null);
 
-                /*let cur_position = formatTime(data.media_position)
-                let cur_duration = formatTime(data.media_duration)
+            let rawServerPos = data.media_position !== undefined ? parseFloat(data.media_position).toFixed(2) : "N/A";
+            let localPos = optimisticPosition.toFixed(2);
+            console.log(
+                `[Sync Debug] Server: ${rawServerPos}s (${data.media_status}) | ` + 
+                `Local: ${localPos}s (Override: ${optimisticStatus || 'None'}) | ` + 
+                `State: ${isSeeking || isOverriding ? 'TRUST LOCAL UI' : 'TRUST SERVER'}`
+            );
 
-                document.getElementById('duration').textContent = `${cur_position} / ${cur_duration}`; */
-
+            if (!isSeeking && !isOverriding) { 
+                // TRUST THE SERVER 
                 if (data.media_position !== undefined && data.media_duration !== undefined) {
-                    /* currentMediaDuration = data.media_duration; */
-
+                    currentMediaPosition = parseFloat(data.media_position); // Update safety tracker
+                    
                     let cur_position = formatTime(data.media_position);
                     let cur_duration = formatTime(data.media_duration);
 
                     document.getElementById('duration').textContent = `[${cur_position} / ${cur_duration}]`;
                     updatePlayingBar(data.media_position, data.media_duration);
+                    
+                    if (typeof syncLyrics === 'function') syncLyrics(currentMediaPosition);
                 } else {
                     document.getElementById('duration').textContent = "[ - / - ]";
                     updatePlayingBar(0, 0);
+                }
+            } else {
+                // TRUST THE LOCAL UI
+                if (data.media_status === 'Playing') {
+                    optimisticPosition += 0.25; 
+                }
+                
+                if (data.media_duration !== undefined) {
+                    document.getElementById('duration').textContent = `[${formatTime(optimisticPosition)} / ${formatTime(data.media_duration)}]`;
+                    updatePlayingBar(optimisticPosition, data.media_duration);
+                }
+                if (typeof syncLyrics === 'function') {
+                    syncLyrics(optimisticPosition);
                 }
             }
 
@@ -220,7 +254,7 @@ function fetchSystemSpecs() {
             localStorage.setItem(CACHE_KEY, JSON.stringify(dataToSave));
 
             // KeepAlive
-            setTimeout(fetchSystemSpecs, 1000);
+            setTimeout(fetchSystemSpecs, 250);
         })
         .catch(err => {
             setTimeout(fetchSystemSpecs, 5000);
@@ -612,6 +646,20 @@ if (btnPrev && btnPlay && btnNext) {
     });
     
     btnPlay.addEventListener('click', () => {
+        if (btnPlay.textContent.includes('||')) {
+            optimisticStatus = 'Paused';
+            btnPlay.textContent = "[ ▶ ]"; // Instantly change icon
+        } else {
+            optimisticStatus = 'Playing';
+            btnPlay.textContent = "[ || ]"; // Instantly change icon
+        }
+
+        lastPlayPauseTime = Date.now();
+        lastSeekTime = Date.now(); // Triggers the local block logic!
+        optimisticPosition = currentMediaPosition; // Freeze at exact current spot
+        
+        // Start the 3-second server ignore window
+        lastPlayPauseTime = Date.now();
         fetch('http://127.0.0.1:25555/media/playpause').catch(e => console.log(e));
     });
     
