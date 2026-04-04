@@ -163,8 +163,9 @@ def monitor():
         dt = current_time - last_tick_time
         last_tick_time = current_time
         
-        # CPU is lightweight, can be checked fast
-        system_state['cpu_percent'] = psutil.cpu_percent(interval=None)
+        # CPU check every sec
+        if tick % 4 == 0:
+            system_state['cpu_percent'] = psutil.cpu_percent(interval=None)
         
         # fetch every 8th, 2sec
         should_fetch_text = (tick % 8 == 0) or startup

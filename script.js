@@ -197,7 +197,7 @@ function fetchSystemSpecs() {
 
             let rawServerPos = data.media_position !== undefined ? parseFloat(data.media_position).toFixed(2) : "N/A";
             let localPos = optimisticPosition.toFixed(2);
-            
+
             /* console.log(
                 `[Sync Debug] Server: ${rawServerPos}s (${data.media_status}) | ` + 
                 `Local: ${localPos}s (Override: ${optimisticStatus || 'None'}) | ` + 
@@ -434,9 +434,16 @@ const track_info = {
 
 if (window.wallpaperRegisterMediaPropertiesListener) {
     window.wallpaperRegisterMediaPropertiesListener((event) => {
-        document.getElementById('title').textContent = event.title || "Unknown Title";
-        document.getElementById('artist').textContent = event.artist || "Unknown Artist";
-        document.getElementById('album').textContent = event.albumTitle || "Unknown Album";
+
+        const maxLength = 25;
+        const truncate = (str, max) => {
+            if (!str) return "";
+            return str.length > max ? str.substring(0, max - 3) + "..." : str;
+        };
+
+        document.getElementById('title').textContent = truncate(event.title || "Unknown Title", maxLength);
+        document.getElementById('artist').textContent = truncate(event.artist || "Unknown Artist", maxLength);
+        document.getElementById('album').textContent = truncate(event.albumTitle || "Unknown Album", maxLength);
 
         if (track_info.title === event.title && track_info.artist === event.artist) {
             return; 
