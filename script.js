@@ -17,13 +17,16 @@ const position = {
 };
 
 let lastResetToggleValue = null;
-let currentBgImage = "";
-let currentBgDim = 0.6;
+
 let lastSeekTime = 0;
 let optimisticPosition = 0;
 let optimisticStatus = null;
 let lastPlayPauseTime = 0;
 let currentMediaPosition = 0;
+
+let currentBgVideo = "";
+let currentBgImage = "";
+let currentBgDim = 0.6;
 
 function loadCachedSpecs(){
     const cached = localStorage.getItem(CACHE_KEY)
@@ -391,38 +394,65 @@ window.myPropertyHandlers.push(function(properties) {
     // bg
     if (properties.bg_color) {
         let c = properties.bg_color.value.split(' ');
-        let r = Math.round(c[0] * 255);
-        let g = Math.round(c[1] * 255);
-        let b = Math.round(c[2] * 255);
+        let r = Math.round(c[0] * 255), g = Math.round(c[1] * 255), b = Math.round(c[2] * 255);
         document.body.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
     }
 
-    let updateBg = false;
-    
-    if (properties.bg_image) {
+    if (properties.bg_image !== undefined) {
         currentBgImage = properties.bg_image.value;
-        updateBg = true;
-    }
-    if (properties.bg_dim) {
-        currentBgDim = properties.bg_dim.value / 100; // Convert 60 to 0.6
-        updateBg = true;
     }
 
-    if (updateBg) {
-        if (currentBgImage) {
-            // Fix the path slashes for Windows
-            let safePath = currentBgImage.replace(/\\/g, '/');
-            // Create a black overlay using the dim slider value
-            let overlay = `rgba(0, 0, 0, ${currentBgDim})`;
-            
-            // Apply the image with the overlay on top
-            document.body.style.backgroundImage = `linear-gradient(${overlay}, ${overlay}), url('file:///${safePath}')`;
-            document.body.style.backgroundSize = 'cover';
-            document.body.style.backgroundPosition = 'center';
-            document.body.style.backgroundRepeat = 'no-repeat';
-        } else {
-            // Remove the image if the user clears the file picker
-            document.body.style.backgroundImage = 'none';
+    if (properties.bg_video !== undefined) {
+        currentBgVideo = properties.bg_video.value.trim();
+    }
+
+    if (properties.bg_dim !== undefined) {
+        currentBgDim = properties.bg_dim.value / 100;
+    }
+
+    // 1. Apply Dimming Overlay
+    const overlayLayer = document.getElementById('bg-layer-overlay');
+    if (overlayLayer) {
+        overlayLayer.style.backgroundColor = `rgba(0, 0, 0, ${currentBgDim})`;
+    }
+
+    // 2. Apply Image / Video Logic
+    const imageLayer = document.getElementById('bg-layer-image');
+    const videoLayer = document.getElementById('bg-layer-video');
+
+    if (currentBgVideo !== "") {
+        // Video has priority
+        let safePath = currentBgVideo.replace(/\\/g, '/');
+        
+        // Only update source if it's a new video to prevent stuttering
+        if (!videoLayer.src.endsWith(encodeURI(safePath))) {
+            videoLayer.src = 'file:///' + safePath;
+        }
+
+        videoLayer.style.display = 'block';
+        if (imageLayer) imageLayer.style.display = 'none';
+
+        // Enforce Chrome autoplay rules natively
+        videoLayer.muted = true;
+        videoLayer.loop = true;
+        videoLayer.play().catch(err => console.log("Video Play Error:", err));
+        
+    } else if (currentBgImage !== "") {
+        // Fallback to Image
+        let safePath = currentBgImage.replace(/\\/g, '/');
+        imageLayer.style.backgroundImage = `url('file:///${safePath}')`;
+        imageLayer.style.display = 'block';
+        
+        if (videoLayer) {
+            videoLayer.style.display = 'none';
+            videoLayer.src = ""; // Free memory
+        }
+    } else {
+        // Neither selected (Just Solid Color)
+        if (imageLayer) imageLayer.style.display = 'none';
+        if (videoLayer) {
+            videoLayer.style.display = 'none';
+            videoLayer.src = "";
         }
     }
 });
@@ -663,7 +693,7 @@ if (btnPrev && btnPlay && btnNext) {
         }
 
         lastPlayPauseTime = Date.now();
-        lastSeekTime = Date.now(); // Triggers the local block logic!
+        lastSeekTime = Date.now(); // Triggers the local block logic
         optimisticPosition = currentMediaPosition; // Freeze at exact current spot
         
         // Start the 3-second server ignore window
@@ -675,4 +705,3 @@ if (btnPrev && btnPlay && btnNext) {
         fetch('http://127.0.0.1:25555/media/next').catch(e => console.log(e));
     });
 }
-

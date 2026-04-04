@@ -215,3 +215,30 @@ body {
 .lyric-line.active::before {
     content: "> ";
 }
+
+#bg-layer-image, #bg-layer-video, #bg-layer-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+}
+
+#bg-layer-image {
+    z-index: -3; /* Bottom layer */
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    display: none;
+}
+
+#bg-layer-video {
+    z-index: -2; /* Middle layer */
+    object-fit: cover;
+    display: none;
+}
+
+#bg-layer-overlay {
+    z-index: -1; /* Top layer */
+    pointer-events: none; /* Allows clicks to pass through */
+}

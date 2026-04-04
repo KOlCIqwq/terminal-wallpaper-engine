@@ -155,9 +155,15 @@
                 "text": "Background Image",
                 "type": "file"
             },
-            "bg_dim": {
+            "bg_video": {
                 "order": 503,
-                "text": "Image Dimming",
+                "text": "Background Video",
+                "type": "file",
+                "fileType": "video"
+            },
+            "bg_dim": {
+                "order": 504,
+                "text": "Image/Video Dimming",
                 "type": "slider",
                 "min": 0,
                 "max": 100,
