@@ -197,11 +197,12 @@ function fetchSystemSpecs() {
 
             let rawServerPos = data.media_position !== undefined ? parseFloat(data.media_position).toFixed(2) : "N/A";
             let localPos = optimisticPosition.toFixed(2);
-            console.log(
+            
+            /* console.log(
                 `[Sync Debug] Server: ${rawServerPos}s (${data.media_status}) | ` + 
                 `Local: ${localPos}s (Override: ${optimisticStatus || 'None'}) | ` + 
                 `State: ${isSeeking || isOverriding ? 'TRUST LOCAL UI' : 'TRUST SERVER'}`
-            );
+            ); */
 
             if (!isSeeking && !isOverriding) { 
                 // TRUST THE SERVER 

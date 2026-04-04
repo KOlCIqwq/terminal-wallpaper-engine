@@ -53,8 +53,11 @@ media_manager = None
 seek_target = None
 seek_time = 0
 
-async def get_media_info():
-    global media_manager
+cached_title = ""
+cached_artist = ""
+
+async def get_media_info(fetch_text = False):
+    global media_manager, cached_title, cached_artist
     
     # Only ask Windows for the manager once
     if media_manager is None:
@@ -69,21 +72,21 @@ async def get_media_info():
         playback_info = current_session.get_playback_info()
         status = playback_info.playback_status if playback_info else 0 # 4=Playing, 5=Paused
         
-        try:
-            props = await current_session.try_get_media_properties_async()
-            title = props.title
-            artist = props.artist
-        except:
-            title = "Unknown"
-            artist = "Unknown"
+        if fetch_text:
+            try:
+                props = await current_session.try_get_media_properties_async()
+                cached_title = props.title
+                cached_artist = props.artist
+            except:
+                pass
 
         timeline = current_session.get_timeline_properties()
         position = timeline.position.total_seconds() if timeline else 0
         duration = timeline.end_time.total_seconds() if timeline else 0
 
         return {
-            "media_title": title,
-            "media_artist": artist,
+            "media_title": cached_title,
+            "media_artist": cached_artist,
             "media_status": "Playing" if status == 4 else "Paused",
             "media_position": position,
             "media_duration": duration
@@ -154,7 +157,7 @@ def monitor():
     
     while True:
         # Check media fast
-        time.sleep(0.2)
+        time.sleep(0.25)
         
         current_time = time.time()
         dt = current_time - last_tick_time
@@ -163,8 +166,11 @@ def monitor():
         # CPU is lightweight, can be checked fast
         system_state['cpu_percent'] = psutil.cpu_percent(interval=None)
         
+        # fetch every 8th, 2sec
+        should_fetch_text = (tick % 8 == 0) or startup
+        
         try:
-            media_data = loop.run_until_complete(get_media_info())
+            media_data = loop.run_until_complete(get_media_info(fetch_text=should_fetch_text))
         except:
             media_data = {}
         
@@ -208,9 +214,9 @@ def monitor():
         media_data['media_position'] = cur_pos
         system_state.update(media_data)
         
-        print(f"[Python] Windows API: {skipped_position:.2f}s | Python Sending: {cur_pos:.2f}s | Status: {status} | Ignoring API: {ignore_smtc}")
+        #print(f"[Python] Windows API: {skipped_position:.2f}s | Python Sending: {cur_pos:.2f}s | Status: {status} | Ignoring API: {ignore_smtc}")
         # check gpu and ram every 3rd loop 
-        if tick % 3 == 0:
+        if tick % 12 == 0:
             try:
                 gpu_stats = gpustat.GPUStatCollection.new_query()
                 system_state['gpu_percent'] = gpu_stats.gpus[0].utilization if gpu_stats.gpus else 0
@@ -222,7 +228,7 @@ def monitor():
             system_state['ram_used'] = round(mem.used / (1024.0 ** 3) , 1)
             
         # check the disk every minute
-        if tick % 75 == 0:
+        if tick % 240 == 0:
             try:
                 system_state['disk_percent'] = psutil.disk_usage('/').percent
                 system_state['disk_used'] = f"{round(psutil.disk_usage('/').used / (1024.0 ** 3), 1)} GB"
