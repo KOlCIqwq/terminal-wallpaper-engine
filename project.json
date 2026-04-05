@@ -62,7 +62,7 @@
             },
             "image_group": {
                 "order": 200,
-                "text": "Image Settings",
+                "text": "Album Image Settings",
                 "type": "group"
             },
             "ascii_resolution": {

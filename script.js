@@ -281,7 +281,7 @@ if (!window.wallpaperPropertyListener) {
 }
 
 window.myPropertyHandlers.push(function(properties) {
-    let isEditMode = false; // Add this near the top of your property handler block
+    let isEditMode = false;
 
     // Toggle Edit Mode
     if (properties.edit_mode !== undefined) {
@@ -410,13 +410,13 @@ window.myPropertyHandlers.push(function(properties) {
         currentBgDim = properties.bg_dim.value / 100;
     }
 
-    // 1. Apply Dimming Overlay
+    // Apply Dimming Overlay
     const overlayLayer = document.getElementById('bg-layer-overlay');
     if (overlayLayer) {
         overlayLayer.style.backgroundColor = `rgba(0, 0, 0, ${currentBgDim})`;
     }
 
-    // 2. Apply Image / Video Logic
+    // Apply Image / Video
     const imageLayer = document.getElementById('bg-layer-image');
     const videoLayer = document.getElementById('bg-layer-video');
 
@@ -424,9 +424,9 @@ window.myPropertyHandlers.push(function(properties) {
         // Video has priority
         let safePath = currentBgVideo.replace(/\\/g, '/');
         
-        // Only update source if it's a new video to prevent stuttering
-        if (!videoLayer.src.endsWith(encodeURI(safePath))) {
-            videoLayer.src = 'file:///' + safePath;
+        // Use getAttribute to check the exact string we set, avoiding URL encode weirdness
+        if (videoLayer.getAttribute('src') !== safePath) {
+            videoLayer.setAttribute('src', safePath);
         }
 
         videoLayer.style.display = 'block';
@@ -440,19 +440,22 @@ window.myPropertyHandlers.push(function(properties) {
     } else if (currentBgImage !== "") {
         // Fallback to Image
         let safePath = currentBgImage.replace(/\\/g, '/');
-        imageLayer.style.backgroundImage = `url('file:///${safePath}')`;
+        
+        imageLayer.style.backgroundImage = `url('${safePath}')`; 
         imageLayer.style.display = 'block';
         
         if (videoLayer) {
             videoLayer.style.display = 'none';
-            videoLayer.src = ""; // Free memory
+            videoLayer.removeAttribute('src'); // Free memory cleanly
+            videoLayer.load(); // Force the player to drop the old video
         }
     } else {
-        // Neither selected (Just Solid Color)
+        // solid color
         if (imageLayer) imageLayer.style.display = 'none';
         if (videoLayer) {
             videoLayer.style.display = 'none';
-            videoLayer.src = "";
+            videoLayer.removeAttribute('src');
+            videoLayer.load();
         }
     }
 });
