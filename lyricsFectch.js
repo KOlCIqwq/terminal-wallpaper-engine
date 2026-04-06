@@ -5,7 +5,7 @@ function parseLRC(lrcString) {
     const lines = lrcString.split('\n');
     const result = [];
     
-    const timeReg = /\[(\d{2}):(\d{2}\.\d{2,})\]/;
+    const timeReg = /\[(\d{2,}):(\d{2}(?:\.\d+)?)\]/;
 
     result.push({ time: 0, text: ' '})
 
@@ -23,7 +23,7 @@ function parseLRC(lrcString) {
         }
     });
 
-    result.push({ time: 999, text: ' '})
+    result.push({ time: 9999, text: ' '})
     return result;
 }
 

@@ -28,6 +28,10 @@ let currentBgVideo = "";
 let currentBgImage = "";
 let currentBgDim = 0.6;
 
+let isPythonServerRunning = true;
+let isNativePlaying = false;
+let nativeMediaDuration = 0;
+
 function loadCachedSpecs(){
     const cached = localStorage.getItem(CACHE_KEY)
     if (cached){
@@ -136,6 +140,20 @@ function fetchSystemSpecs() {
     fetch('http://127.0.0.1:25555/specs')
         .then(response => {
             if (!response.ok) throw new Error("Server down");
+            // reconnect
+            if (!isPythonServerRunning) {
+                console.log("Python Server Reconnected!");
+                isPythonServerRunning = true;
+                
+                // Clear the UI locks so the progress bar unfreezes instantly
+                lastSeekTime = 0;
+                optimisticStatus = null;
+                lastPlayPauseTime = 0;
+                
+                // Force Python's UI to adopt the current Native clock so it doesn't jump
+                optimisticPosition = currentMediaPosition;
+            }
+
             return response.json();
         })
         .then(data => {
@@ -261,6 +279,14 @@ function fetchSystemSpecs() {
             setTimeout(fetchSystemSpecs, 250);
         })
         .catch(err => {
+            let justSwitched = isPythonServerRunning;
+            isPythonServerRunning = false;
+            document.getElementById('os').textContent = "[ Native Mode Active ]";
+            if (justSwitched && typeof updateNativeUI === 'function') {
+                updateNativeUI();
+                currentMediaPosition = nativeState.position;
+                nativeMediaDuration = nativeState.duration;
+            }
             setTimeout(fetchSystemSpecs, 5000);
         });
 }
@@ -416,17 +442,18 @@ window.myPropertyHandlers.push(function(properties) {
         overlayLayer.style.backgroundColor = `rgba(0, 0, 0, ${currentBgDim})`;
     }
 
-    // Apply Image / Video
+    // Apply Image / Video Logic
     const imageLayer = document.getElementById('bg-layer-image');
     const videoLayer = document.getElementById('bg-layer-video');
 
     if (currentBgVideo !== "") {
         // Video has priority
         let safePath = currentBgVideo.replace(/\\/g, '/');
+        let finalUrl = 'file:///' + safePath;
         
         // Use getAttribute to check the exact string we set, avoiding URL encode weirdness
-        if (videoLayer.getAttribute('src') !== safePath) {
-            videoLayer.setAttribute('src', safePath);
+        if (videoLayer.getAttribute('src') !== finalUrl) {
+            videoLayer.setAttribute('src', finalUrl);
         }
 
         videoLayer.style.display = 'block';
@@ -441,7 +468,8 @@ window.myPropertyHandlers.push(function(properties) {
         // Fallback to Image
         let safePath = currentBgImage.replace(/\\/g, '/');
         
-        imageLayer.style.backgroundImage = `url('${safePath}')`; 
+        // Reverted exactly to your old working version!
+        imageLayer.style.backgroundImage = `url('file:///${safePath}')`; 
         imageLayer.style.display = 'block';
         
         if (videoLayer) {
@@ -465,7 +493,76 @@ const track_info = {
     artist: '',
 }
 
+const nativeState = {
+    isPlaying: false,
+    title: "",
+    artist: "",
+    album: "",
+    position: 0,
+    duration: 0
+};
+
+// media text & lyrics
 if (window.wallpaperRegisterMediaPropertiesListener) {
+    window.wallpaperRegisterMediaPropertiesListener((event) => {
+        const maxLength = 25;
+        const truncate = (str, max) => str && str.length > max ? str.substring(0, max - 3) + "..." : str || "Unknown";
+
+        document.getElementById('title').textContent = truncate(event.title, maxLength);
+        document.getElementById('artist').textContent = truncate(event.artist, maxLength);
+        document.getElementById('album').textContent = truncate(event.albumTitle, maxLength);
+
+        const trackSignature = `${event.artist} - ${event.title}`;
+        
+        // If the song changed, fetch new lyrics immediately!
+        if (trackSignature !== currentTrackHash && event.title) {
+            currentTrackHash = trackSignature;
+            if (typeof getLyrics === 'function') getLyrics(event.title, event.artist);
+        }
+    });
+}
+
+// NATIVE TIMELINE
+if (window.wallpaperRegisterMediaTimelineListener) {
+    window.wallpaperRegisterMediaTimelineListener((event) => {
+        if (!isPythonServerRunning) {
+            currentMediaPosition = event.position; 
+            nativeMediaDuration = event.duration;
+        }
+    });
+}
+
+// NATIVE PLAYBACK STATE
+if (window.wallpaperRegisterMediaPlaybackListener) {
+    window.wallpaperRegisterMediaPlaybackListener((event) => {
+        if (!isPythonServerRunning) {
+            isNativePlaying = (event.state === window.wallpaperMediaIntegration.PLAYBACK_PLAYING);
+            
+            const playButton = document.getElementById('btn-play');
+            if (playButton) {
+                playButton.textContent = isNativePlaying ? "[ || ]" : "[ ▶ ]"; 
+            }
+        }
+    });
+}
+
+// Runs at 10 FPS to glide the UI forward between Wallpaper Engine's slow 5-second pings
+setInterval(() => {
+    if (!isPythonServerRunning && isNativePlaying) {
+        currentMediaPosition += 0.1; 
+        
+        if (currentMediaPosition > nativeMediaDuration && nativeMediaDuration > 0) {
+            currentMediaPosition = nativeMediaDuration;
+        }
+        
+        document.getElementById('duration').textContent = `[${formatTime(currentMediaPosition)} / ${formatTime(nativeMediaDuration)}]`;
+        updatePlayingBar(currentMediaPosition, nativeMediaDuration);
+        
+        if (typeof syncLyrics === 'function') syncLyrics(currentMediaPosition);
+    }
+}, 100);
+
+/* if (window.wallpaperRegisterMediaPropertiesListener) {
     window.wallpaperRegisterMediaPropertiesListener((event) => {
 
         const maxLength = 25;
@@ -485,7 +582,7 @@ if (window.wallpaperRegisterMediaPropertiesListener) {
         track_info.title = event.title;
         track_info.artist = event.artist;
     });
-}
+} */
 
 if (window.wallpaperRegisterAudioListener) {
     window.wallpaperRegisterAudioListener((audioArray) => {
@@ -676,6 +773,7 @@ function resetAllWidgets() {
         localStorage.removeItem('pos_' + widget.id);
     });
 }
+
 //media control
 const btnPrev = document.getElementById('btn-prev');
 const btnPlay = document.getElementById('btn-play');
@@ -683,28 +781,38 @@ const btnNext = document.getElementById('btn-next');
 
 if (btnPrev && btnPlay && btnNext) {
     btnPrev.addEventListener('click', () => {
-        fetch('http://127.0.0.1:25555/media/prev').catch(e => console.log(e));
+        if (isPythonServerRunning) {
+            fetch('http://127.0.0.1:25555/media/prev?t=' + Date.now()).catch(e => console.log(e));
+        } else {
+            console.log("Controls disabled. Python script required to send commands to Windows.");
+        }
     });
     
     btnPlay.addEventListener('click', () => {
-        if (btnPlay.textContent.includes('||')) {
-            optimisticStatus = 'Paused';
-            btnPlay.textContent = "[ ▶ ]"; // Instantly change icon
-        } else {
-            optimisticStatus = 'Playing';
-            btnPlay.textContent = "[ || ]"; // Instantly change icon
-        }
+        if (isPythonServerRunning) {
+            // Optimistic UI update
+            if (btnPlay.textContent.includes('||')) {
+                optimisticStatus = 'Paused';
+                btnPlay.textContent = "[ ▶ ]"; 
+            } else {
+                optimisticStatus = 'Playing';
+                btnPlay.textContent = "[ || ]"; 
+            }
 
-        lastPlayPauseTime = Date.now();
-        lastSeekTime = Date.now(); // Triggers the local block logic
-        optimisticPosition = currentMediaPosition; // Freeze at exact current spot
-        
-        // Start the 3-second server ignore window
-        lastPlayPauseTime = Date.now();
-        fetch('http://127.0.0.1:25555/media/playpause').catch(e => console.log(e));
+            lastPlayPauseTime = Date.now();
+            lastSeekTime = Date.now(); 
+            optimisticPosition = currentMediaPosition; 
+            fetch('http://127.0.0.1:25555/media/playpause?t=' + Date.now()).catch(e => console.log(e));
+        } else {
+            console.log("Controls disabled. Python script required to send commands to Windows.");
+        }
     });
     
     btnNext.addEventListener('click', () => {
-        fetch('http://127.0.0.1:25555/media/next').catch(e => console.log(e));
+        if (isPythonServerRunning) {
+            fetch('http://127.0.0.1:25555/media/next?t=' + Date.now()).catch(e => console.log(e));
+        } else {
+            console.log("Controls disabled. Python script required to send commands to Windows.");
+        }
     });
 }
