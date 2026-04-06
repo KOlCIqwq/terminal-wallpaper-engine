@@ -146,6 +146,7 @@ def monitor():
     last_track_title = ""
     cur_pos = 0.0
     prev_skip_position = 0
+    last_seek_target = -999.0
     reset = False
     startup = True
     
@@ -182,6 +183,7 @@ def monitor():
         # Instantly apply custom seek from the frontend
         if seek_target is not None:
             cur_pos = seek_target
+            last_seek_target = seek_target # track the requested pos
             seek_target = None
             
         if startup:
@@ -194,14 +196,17 @@ def monitor():
 
         # always track api  
         if abs(prev_skip_position - skipped_position) > 0.0000001:
-            prev_skip_position = skipped_position # Always keep track of what Windows says
+            # If we get a new position from Windows, but it exactly matches the seek we just performed,
+            # it is just a severely delayed "echo" ping from the media player. We flag it to be ignored
+            is_echo = (abs(skipped_position - last_seek_target) < 3.0) and (current_time - seek_time < 15.0)
             
-            if not ignore_smtc: # Only allow it to drag the clock if we are NOT in cooldown
+            if not ignore_smtc and not is_echo: # Only allow it to drag the clock if we are NOT in cooldown
                 if title == last_track_title:
                     if reset == False:
                         cur_pos = skipped_position
                     else:
                         reset = False
+            prev_skip_position = skipped_position # Always keep track of what Windows says
             
         if title != last_track_title:
             last_track_title = title
