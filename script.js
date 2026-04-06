@@ -449,7 +449,9 @@ window.myPropertyHandlers.push(function(properties) {
     if (currentBgVideo !== "") {
         // Video has priority
         let safePath = currentBgVideo.replace(/\\/g, '/');
-        let finalUrl = 'file:///' + safePath;
+        let finalUrl = (safePath.includes(':/') && !safePath.startsWith('file:///')) 
+            ? 'file:///' + safePath 
+            : safePath;
         
         // Use getAttribute to check the exact string we set, avoiding URL encode weirdness
         if (videoLayer.getAttribute('src') !== finalUrl) {
@@ -467,9 +469,12 @@ window.myPropertyHandlers.push(function(properties) {
     } else if (currentBgImage !== "") {
         // Fallback to Image
         let safePath = currentBgImage.replace(/\\/g, '/');
-        
-        // Reverted exactly to your old working version!
-        imageLayer.style.backgroundImage = `url('file:///${safePath}')`; 
+
+        let finalUrl = (safePath.includes(':/') && !safePath.startsWith('file:///')) 
+            ? 'file:///' + safePath 
+            : safePath;
+
+        imageLayer.style.backgroundImage = `url('file:///${finalUrl}')`; 
         imageLayer.style.display = 'block';
         
         if (videoLayer) {
