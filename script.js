@@ -27,6 +27,7 @@ let currentMediaPosition = 0;
 let currentBgVideo = "";
 let currentBgImage = "";
 let currentBgDim = 0.6;
+let currentBgType = "image";
 
 let isPythonServerRunning = true;
 let isNativePlaying = false;
@@ -418,78 +419,84 @@ window.myPropertyHandlers.push(function(properties) {
     toggleWidget(properties.show_lyrics, 'widget-lyrics');
 
     // bg
-    if (properties.bg_color) {
-        let c = properties.bg_color.value.split(' ');
-        let r = Math.round(c[0] * 255), g = Math.round(c[1] * 255), b = Math.round(c[2] * 255);
-        document.body.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+    if (properties.bg_type !== undefined) {
+        currentBgType = properties.bg_type.value;
     }
 
     if (properties.bg_image !== undefined) {
-        currentBgImage = properties.bg_image.value;
+        currentBgImage = properties.bg_image.value ? String(properties.bg_image.value) : "";
     }
 
     if (properties.bg_video !== undefined) {
-        currentBgVideo = properties.bg_video.value.trim();
+        currentBgVideo = properties.bg_video.value ? String(properties.bg_video.value).trim() : "";
     }
 
     if (properties.bg_dim !== undefined) {
         currentBgDim = properties.bg_dim.value / 100;
     }
 
-    // Apply Dimming Overlay
-    const overlayLayer = document.getElementById('bg-layer-overlay');
-    if (overlayLayer) {
-        overlayLayer.style.backgroundColor = `rgba(0, 0, 0, ${currentBgDim})`;
-    }
-
-    // Apply Image / Video Logic
     const imageLayer = document.getElementById('bg-layer-image');
     const videoLayer = document.getElementById('bg-layer-video');
+    const overlayLayer = document.getElementById('bg-layer-overlay');
 
-    if (currentBgVideo !== "") {
-        // Video has priority
-        let safePath = currentBgVideo.replace(/\\/g, '/');
-        let finalUrl = (safePath.includes(':/') && !safePath.startsWith('file:///')) 
-            ? 'file:///' + safePath 
-            : safePath;
+    let vPath = currentBgVideo === "null" ? "" : currentBgVideo;
+    let iPath = currentBgImage === "null" ? "" : currentBgImage;
+
+    let isValidVideo = vPath !== "" && vPath.match(/\.(mp4|webm|ogg|mov|avi|mkv)$/i) !== null;
+
+    if (isValidVideo && currentBgType === "video" && vPath !== "") {
         
-        // Use getAttribute to check the exact string we set, avoiding URL encode weirdness
+        // VIDEO MODE
+        if (overlayLayer) {
+            overlayLayer.style.backgroundColor = `rgba(0, 0, 0, ${currentBgDim})`;
+            overlayLayer.style.display = 'block';
+        }
+        if (imageLayer) imageLayer.style.display = 'none';
+        
+        let safePath = vPath.replace(/\\/g, '/');
+        let finalUrl = safePath.includes(':/') ? 'file:///' + safePath : safePath;
+        
         if (videoLayer.getAttribute('src') !== finalUrl) {
             videoLayer.setAttribute('src', finalUrl);
         }
 
         videoLayer.style.display = 'block';
-        if (imageLayer) imageLayer.style.display = 'none';
-
-        // Enforce Chrome autoplay rules natively
+        document.body.style.backgroundImage = 'none'; 
+        
         videoLayer.muted = true;
         videoLayer.loop = true;
         videoLayer.play().catch(err => console.log("Video Play Error:", err));
         
-    } else if (currentBgImage !== "") {
-        // Fallback to Image
-        let safePath = currentBgImage.replace(/\\/g, '/');
-
-        let finalUrl = (safePath.includes(':/') && !safePath.startsWith('file:///')) 
-            ? 'file:///' + safePath 
-            : safePath;
-
-        imageLayer.style.backgroundImage = `url('file:///${finalUrl}')`; 
-        imageLayer.style.display = 'block';
+    } else if (currentBgType === "image" && iPath !== "") {
         
+        // IMAGE MODE
         if (videoLayer) {
             videoLayer.style.display = 'none';
-            videoLayer.removeAttribute('src'); // Free memory cleanly
-            videoLayer.load(); // Force the player to drop the old video
+            videoLayer.removeAttribute('src'); 
+            videoLayer.load(); 
         }
-    } else {
-        // solid color
         if (imageLayer) imageLayer.style.display = 'none';
+        if (overlayLayer) overlayLayer.style.display = 'none'; 
+        
+        let safePath = iPath.replace(/\\/g, '/');
+        let overlay = `rgba(0, 0, 0, ${currentBgDim})`;
+        
+        document.body.style.backgroundImage = `linear-gradient(${overlay}, ${overlay}), url('file:///${safePath}')`;
+        document.body.style.backgroundSize = 'cover';
+        document.body.style.backgroundPosition = 'center';
+        document.body.style.backgroundRepeat = 'no-repeat';
+        
+    } else {
+        
+        // SOLID COLOR MODE
         if (videoLayer) {
             videoLayer.style.display = 'none';
             videoLayer.removeAttribute('src');
             videoLayer.load();
         }
+        if (imageLayer) imageLayer.style.display = 'none';
+        if (overlayLayer) overlayLayer.style.display = 'none';
+        document.body.style.backgroundImage = 'none';
     }
 });
 
