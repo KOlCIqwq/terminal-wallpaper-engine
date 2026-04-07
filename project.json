@@ -65,20 +65,20 @@
                 "text": "Album Image Settings",
                 "type": "group"
             },
-            "ascii_resolution": {
+            "ascii_image_size": {
                 "order": 201,
-                "text": "Resolution (Detail)",
+                "text": "Image Width (Pixels)",
                 "type": "slider",
-                "min": 20,
-                "max": 150,
-                "value": 80
+                "min": 100,
+                "max": 800,
+                "value": 500
             },
             "ascii_fontsize": {
                 "order": 202,
-                "text": "Image Size (Scale)",
+                "text": "Character Size (Font Size)",
                 "type": "slider",
                 "min": 2,
-                "max": 15,
+                "max": 20,
                 "value": 8
             },
             "layout_group": {
@@ -139,6 +139,35 @@
                 "type": "bool",
                 "value": true
             },
+            "show_map": {
+                "order": 407,
+                "text": "Show Map",
+                "type": "bool",
+                "value": true
+            },
+            "clocks_group": {
+                "order": 450,
+                "text": "World Clocks",
+                "type": "group"
+            },
+            "extra_clock_1_city": {
+                "order": 451,
+                "text" : "Clock 1 City",
+                "type" : "textinput",
+                "value" : ""
+            },
+            "extra_clock_2_city": {
+                "order": 452,
+                "text" : "Clock 2 City",
+                "type" : "textinput",
+                "value" : ""
+            },
+            "use_24h_format": {
+                "order": 453,
+                "text": "Use 24-Hour Format",
+                "type": "bool",
+                "value": false
+            },
             "background_group": {
                 "order": 500,
                 "text": "Background Settings",
@@ -168,6 +197,27 @@
                 "min": 0,
                 "max": 100,
                 "value": 60
+            },
+            "radar_group": {
+                "order": 600,
+                "text": "Radar Map Settings",
+                "type": "group"
+            },
+            "map_image_size": {
+                "order": 601,
+                "text": "Map Width (Pixels)",
+                "type": "slider",
+                "min": 300,
+                "max": 800,
+                "value": 700
+            },
+            "map_fontsize": {
+                "order": 602,
+                "text": "Character Size (Font Size)",
+                "type": "slider",
+                "min": 2,
+                "max": 20,
+                "value": 8
             }
         },
         "supportsaudioprocessing" : true

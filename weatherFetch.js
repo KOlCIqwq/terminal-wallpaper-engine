@@ -1,4 +1,176 @@
+let mapImageSize = 700;
+let mapFontSize = 8;
+
+window.myPropertyHandlers = window.myPropertyHandlers || [];
+
+window.myPropertyHandlers.push(function(properties) {
+    let redrawNeeded = false;
+
+    if (properties.map_image_size) {
+        mapImageSize = parseInt(properties.map_image_size.value);
+        redrawNeeded = true;
+    }
+    if (properties.map_fontsize) {
+        mapFontSize = parseInt(properties.map_fontsize.value); 
+        redrawNeeded = true;
+    }
+
+    if (redrawNeeded) {
+        let lon = (typeof position !== 'undefined' && position.lon !== null) ? position.lon : 12.4964;
+        let lat = (typeof position !== 'undefined' && position.lat !== null) ? position.lat : 41.9028;
+        if (typeof renderGlobe === 'function') {
+            renderGlobe(lon, lat);
+        }
+    }
+});
+
+const radarMapImage = new Image();
+radarMapImage.src = 'map.jpg'; 
+
+radarMapImage.onerror = function() {
+    console.error("ERROR: Could not load the map image.");
+    document.getElementById("today-weather").innerText = "[ Map Image Missing! ]";
+};
+
+function renderGlobe(userLon, userLat) {
+    const hiddenCanvas = document.getElementById('map-hidden-canvas');
+    const asciiCanvas = document.getElementById('map-ascii-canvas');
+    if (!hiddenCanvas || !asciiCanvas) return;
+
+    if (userLon === undefined || userLon === null) userLon = 12.4964;
+    if (userLat === undefined || userLat === null) userLat = 41.9028;
+
+    if (!radarMapImage.complete || radarMapImage.naturalWidth === 0) {
+        radarMapImage.onload = () => renderGlobe(userLon, userLat);
+        return;
+    }
+
+    const ctx = hiddenCanvas.getContext('2d', {willReadFrequently: true});
+    const asciiCtx = asciiCanvas.getContext('2d');
+
+    const density = "Ñ@#W$9876543210?!abc;:+=-,._ ";
+    const densityLen = density.length - 1;
+    
+    const charWidth = mapFontSize * 0.6;
+    const charHeight = mapFontSize * 0.65; 
+
+    const asciiWidth = Math.floor(mapImageSize / charWidth); 
+    const scaleFactor = asciiWidth / radarMapImage.width;
+    const asciiHeight = Math.floor(radarMapImage.height * scaleFactor);
+
+    hiddenCanvas.width = asciiWidth;
+    hiddenCanvas.height = asciiHeight;
+    ctx.drawImage(radarMapImage, 0, 0, asciiWidth, asciiHeight);
+
+    const imageData = ctx.getImageData(0, 0, asciiWidth, asciiHeight);
+    const pixels = imageData.data;
+
+    asciiCanvas.width = asciiWidth * charWidth;
+    asciiCanvas.height = asciiHeight * charHeight;
+    
+    asciiCtx.clearRect(0, 0, asciiCanvas.width, asciiCanvas.height);
+    asciiCtx.font = `bold ${mapFontSize}px Consolas, "Courier New", monospace`;
+    asciiCtx.textBaseline = "top";
+
+    // sunset/rise 
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 0);
+    const dayOfYear = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+    
+    // Sun Declination
+    const declination = -23.44 * Math.cos((2 * Math.PI / 365) * (dayOfYear + 10)) * (Math.PI / 180);
+    
+    // Subsolar Longitude
+    const utcHours = now.getUTCHours() + now.getUTCMinutes() / 60;
+    const sunLonRad = (12 - utcHours) * 15 * (Math.PI / 180);
+
+    let markerX = Math.floor(((userLon + 180) / 360) * asciiWidth);
+    let markerY = Math.floor(((90 - userLat) / 180) * asciiHeight);
+    markerX = Math.max(0, Math.min(asciiWidth - 1, markerX));
+    markerY = Math.max(0, Math.min(asciiHeight - 1, markerY));
+
+    let clock1X = -1, clock1Y = -1;
+    if (window.clock1Coords) {
+        clock1X = Math.floor(((window.clock1Coords.lon + 180) / 360) * asciiWidth);
+        clock1Y = Math.floor(((90 - window.clock1Coords.lat) / 180) * asciiHeight);
+        clock1X = Math.max(0, Math.min(asciiWidth - 1, clock1X));
+        clock1Y = Math.max(0, Math.min(asciiHeight - 1, clock1Y));
+    }
+
+    let clock2X = -1, clock2Y = -1;
+    if (window.clock2Coords) {
+        clock2X = Math.floor(((window.clock2Coords.lon + 180) / 360) * asciiWidth);
+        clock2Y = Math.floor(((90 - window.clock2Coords.lat) / 180) * asciiHeight);
+        clock2X = Math.max(0, Math.min(asciiWidth - 1, clock2X));
+        clock2Y = Math.max(0, Math.min(asciiHeight - 1, clock2Y));
+    }
+
+    for (let y = 0; y < asciiHeight; y++) {
+        // Calculate the physical Latitude for this row of text
+        const lat = 90 - (y / asciiHeight) * 180;
+        const latRad = lat * (Math.PI / 180);
+
+        for (let x = 0; x < asciiWidth; x++) {
+            // Calculate the physical Longitude for this column of text
+            const lon = (x / asciiWidth) * 360 - 180;
+            const lonRad = lon * (Math.PI / 180);
+
+            // Calculate the Zenith Angle of the sun for this specific coordinate
+            const cosZenith = Math.sin(latRad) * Math.sin(declination) + 
+                              Math.cos(latRad) * Math.cos(declination) * Math.cos(lonRad - sunLonRad);
+
+            const offset = (y * asciiWidth + x) * 4;
+            let r = pixels[offset];
+            let g = pixels[offset + 1];
+            let b = pixels[offset + 2];
+            const alpha = pixels[offset + 3];
+
+            if (alpha < 10) continue; 
+
+            if (x === markerX && y === markerY) {
+                asciiCtx.fillStyle = "#ff3333";
+                asciiCtx.shadowColor = "#ff0000";
+                asciiCtx.shadowBlur = 5;
+                asciiCtx.fillText("◈", x * charWidth, y * charHeight);
+                asciiCtx.shadowBlur = 0; 
+                continue; 
+            }
+            
+            // draw clocks position
+            if ((clock1Coords && x === clock1X && y === clock1Y) || 
+                (clock2Coords && x === clock2X && y === clock2Y)) {
+                asciiCtx.fillStyle = "#e5c07b"; 
+                asciiCtx.fillText("◈", x * charWidth, y * charHeight);
+                continue; 
+            }
+
+            // shading
+            if (Math.abs(cosZenith) < 0.03) {
+                // borderline
+                r = Math.min(255, r + 80);
+                g = Math.min(255, g + 50);
+                b = Math.max(0, b - 40);
+            } else if (cosZenith < 0) {
+                // Nighttime
+                r = Math.floor(r * 0.2);
+                g = Math.floor(g * 0.3);
+                b = Math.floor(b * 0.5);
+            }
+
+            const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+            const charIndex = Math.floor((brightness / 255) * densityLen);
+            const char = density[charIndex];
+
+            if (char !== " ") {
+                asciiCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                asciiCtx.fillText(char, x * charWidth, y * charHeight);
+            }
+        }
+    }
+}
+
 function getWeather(lon,lat){
+    renderGlobe(lon, lat);
     const params = new URLSearchParams({
         latitude: lat,
         longitude: lon,

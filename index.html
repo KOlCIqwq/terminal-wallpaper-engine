@@ -30,9 +30,19 @@
     <div class="draggable-widget" id="widget-weather">
         <div class="clock-row">
             <span class="yellow">Clock 0</span>
-            <span class="white">&nbsp;&nbsp;[LOCAL] Today&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span id="date">YYYY-MM-DD</span> | <span id="clock">00:00:00</span></span>
+            <span class="white">&nbsp;&nbsp;<span id="local-clock-label"></span><span id="date">YYYY-MM-DD</span> | <span id="clock">00:00:00</span></span>
         </div>
-        
+        <div id="extra-clock-1-row" class="clock-row" style="display:none;">
+            <span class="yellow">Clock 1</span>
+            <span class="white">&nbsp;&nbsp;<span id="extra-clock-1-label"></span><span id="extra-clock-1-date">YYYY-MM-DD</span> | <span id="extra-clock-1-time">00:00:00</span></span>
+        </div>
+        <div id="extra-clock-2-row" class="clock-row" style="display:none;">
+            <span class="yellow">Clock 2</span>
+            <span class="white">&nbsp;&nbsp;<span id="extra-clock-2-label"></span><span id="extra-clock-2-date">YYYY-MM-DD</span> | <span id="extra-clock-2-time">00:00:00</span></span>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="gray">WEATHER.EXE</div>
         <div class="gray divider">--------------------------------------------------------------------------------</div>
         
         <div class="spacer"></div>
@@ -55,7 +65,17 @@
         </div>
     </div>
 
+    <div class="draggable-widget" id="widget-map">
+        <div class="gray">MAP.EXE</div>
+        <div class="gray divider">--------------------------------------------------------------------------------</div>
+        <div style="padding: 10px 0; text-align: center;">
+            <canvas id="map-hidden-canvas" style="display: none;"></canvas>
+            <canvas id="map-ascii-canvas"></canvas>
+        </div>
+    </div>
+
     <div class="draggable-widget" id="widget-vis">
+        <div class="gray">VISUALIZER.EXE</div>
         <div class="gray divider">--------------------------------------------------------------------------------</div>
         <div class="vis-block">
             <div class="line"><span class="white vis-label">Bass:</span><span class="yellow">[<span id="bar-bass">..........</span>] <span id="bass-perc">0%</span></span></div>
@@ -66,6 +86,7 @@
     </div>
 
     <div class="draggable-widget" id="widget-media">
+        <div class="gray">MEDIA.EXE</div>
         <div class="gray divider">--------------------------------------------------------------------------------</div>
         <div class="media-table">
             <div class="media-header white">
@@ -105,7 +126,7 @@
 
     <div class="draggable-widget" id="widget-lyrics">
         <div class="spacer"></div>
-        <div class="gray">LYRICS_MODULE.EXE</div>
+        <div class="gray">LYRICS.EXE</div>
         <div class="gray divider">--------------------------------------------------------------------------------</div>
         
         <div id="lyrics-container" class="lyrics-content">
@@ -115,8 +136,8 @@
 
     <!-- <button id="reset-btn" class="terminal-btn">[RESET]</button> -->
 
-    <script src="weatherFetch.js"></script>
     <script src="imageASCII.js"></script>
+    <script src="weatherFetch.js"></script>
     <script src="lyricsFectch.js"></script>
     <script src="script.js"></script>
     

@@ -7,7 +7,7 @@ const asciiCtx = asciiOutput.getContext('2d');
 const density = "Ñ@#W$9876543210?!abc;:+=-,._ ";
 const densityLen = density.length - 1;
 
-let currentAsciiWidth = 80;
+let currentImageSize = 500;
 let currentFontSize = 8;
 let currentThumbnailBase64 = null;
 
@@ -22,30 +22,18 @@ if (!window.wallpaperPropertyListener) {
 }
 
 // Push the ASCII slider logic into the shared hub
+window.myPropertyHandlers = window.myPropertyHandlers || [];
+
 window.myPropertyHandlers.push(function(properties) {
     let redrawNeeded = false;
-    let scaleNeedsUpdate = false;
 
-    if (properties.ascii_resolution) {
-        currentAsciiWidth = parseInt(properties.ascii_resolution.value);
+    if (properties.ascii_image_size) {
+        currentImageSize = parseInt(properties.ascii_image_size.value);
         redrawNeeded = true;
-        scaleNeedsUpdate = true;
     }
-
     if (properties.ascii_fontsize) {
-        // Update the global font size variable
         currentFontSize = parseInt(properties.ascii_fontsize.value); 
-        scaleNeedsUpdate = true;
-        redrawNeeded = true; // Font size changed, so we must redraw the canvas text
-    }
-
-    if (scaleNeedsUpdate){
-        const targetPixelWidth = 500;
-        const estimatedCharWidth = currentFontSize * 0.6;
-        const rawWidth = currentAsciiWidth * estimatedCharWidth;
-
-        const zoomLevel = targetPixelWidth / rawWidth;
-        asciiOutput.style.zoom = zoomLevel;
+        redrawNeeded = true;
     }
 
     if (redrawNeeded && currentThumbnailBase64) {
@@ -69,7 +57,12 @@ function generateAscii(base64Image) {
     const asciiImg = new Image();
 
     asciiImg.onload = () => {
-        const asciiWidth = currentAsciiWidth;
+        // Calculate the character dimensions first
+        const charWidth = currentFontSize * 0.6;
+        const charHeight = currentFontSize * 0.65; 
+        
+        // How many characters fit in the requested physical size
+        const asciiWidth = Math.floor(currentImageSize / charWidth);
         const scaleFactor = asciiWidth / asciiImg.width;
         const asciiHeight = Math.floor(asciiImg.height * scaleFactor);
 
@@ -80,20 +73,15 @@ function generateAscii(base64Image) {
 
         const imageData = ctx.getImageData(0, 0, asciiWidth, asciiHeight);
         const pixels = imageData.data;
-
-        // Prep the Output Canvas Dimensions
-        const charWidth = currentFontSize * 0.6; // standard monospace aspect ratio
-        const charHeight = currentFontSize * 0.65; // line height spacing
         
+        // Set the output canvas to the exact 1:1 pixel size requested
         asciiOutput.width = asciiWidth * charWidth;
         asciiOutput.height = asciiHeight * charHeight;
         
-        // Setup Canvas Text styling
         asciiCtx.clearRect(0, 0, asciiOutput.width, asciiOutput.height);
         asciiCtx.font = `bold ${currentFontSize}px Consolas, "Courier New", monospace`;
         asciiCtx.textBaseline = "top";
 
-        // The high-speed drawing loop
         for (let y = 0; y < asciiHeight; y++) {
             for (let x = 0; x < asciiWidth; x++) {
                 const offset = (y * asciiWidth + x) * 4;
@@ -101,7 +89,7 @@ function generateAscii(base64Image) {
                 const g = pixels[offset + 1];
                 const b = pixels[offset + 2];
 
-                // Super-fast integer math for brightness
+                // integer math for brightness
                 const brightness = (r * 299 + g * 587 + b * 114) / 1000;
                 const charIndex = Math.floor((brightness / 255) * densityLen);
                 
