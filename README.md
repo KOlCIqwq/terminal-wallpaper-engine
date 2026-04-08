@@ -1,4 +1,4 @@
-![Thumbnail](./demo.gif)
+![Thumbnail](./demo_new.gif)
 
 # SysMonitor API
 
