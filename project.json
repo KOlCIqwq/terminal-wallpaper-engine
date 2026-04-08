@@ -11,9 +11,15 @@
                 "type" : "color",
                 "value" : "0 0.47 0.84"
             },
+            "tips": {
+                "order": -1,
+                "text" : "It is recommended to use it with a performance logger and a music player controller.",
+                "type" : "textinput",
+                "value": "https://github.com/KOlCIqwq/terminal-wallpaper-engine/releases/tag/1.0"
+            },
             "location_group": {
                 "order": 1,
-                "text": "Location Settings",
+                "text": "Weather Location Settings",
                 "type": "group"
             },
             "city_name": {

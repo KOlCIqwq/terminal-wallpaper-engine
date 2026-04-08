@@ -1049,7 +1049,7 @@ function fetchTimezoneForClock(cityName, clockNum) {
                     localStorage.setItem('clock2Coords', JSON.stringify(coords));
                 }
 
-                // Instantly update the radar map to show the new pins
+                // Instantly update the map to show the new pins
                 if (typeof renderGlobe === 'function' && typeof position !== 'undefined') {
                     renderGlobe(position.lon, position.lat);
                 }
