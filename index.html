@@ -13,7 +13,8 @@
         <div class="sys-block">
             <div class="info-col">
                 <div class="white"><span id="username" class="white">user@System</span></div>
-                <div class="gray">----------------------------</div>
+                <div class="white"><span id="log_text" class="white"></span></div>
+                <div class="divider-text">----------------------------</div>
                 <div class="line"><span class="blue label">OS:</span><span id="os" class="white">Detecting...</span></div>
                 <div class="line"><span class="blue label">CPU:</span><span id="cpu" class="white">Loading...</span></div>
                 <div class="line"><span class="label"></span><span id="cpu-bar" class="white"></span></div>
@@ -42,8 +43,8 @@
         </div>
 
         <div class="spacer"></div>
-        <div class="gray">WEATHER.EXE</div>
-        <div class="gray divider">--------------------------------------------------------------------------------</div>
+        <div class="header-text">WEATHER.EXE</div>
+        <div class="divider-text divider">--------------------------------------------------------------------------------</div>
         
         <div class="spacer"></div>
         <span class="blue label" id="city-name">Unknown</span>
@@ -66,8 +67,8 @@
     </div>
 
     <div class="draggable-widget" id="widget-map">
-        <div class="gray">MAP.EXE</div>
-        <div class="gray divider">--------------------------------------------------------------------------------</div>
+        <div class="header-text">MAP.EXE</div>
+        <div class="divider-text divider">--------------------------------------------------------------------------------</div>
         <div style="padding: 10px 0; text-align: center;">
             <canvas id="map-hidden-canvas" style="display: none;"></canvas>
             <canvas id="map-ascii-canvas"></canvas>
@@ -75,8 +76,8 @@
     </div>
 
     <div class="draggable-widget" id="widget-vis">
-        <div class="gray">VISUALIZER.EXE</div>
-        <div class="gray divider">--------------------------------------------------------------------------------</div>
+        <div class="header-text">VISUALIZER.EXE</div>
+        <div class="divider-text divider">--------------------------------------------------------------------------------</div>
         <div class="vis-block">
             <div class="line"><span class="white vis-label">Bass:</span><span class="yellow">[<span id="bar-bass">..........</span>] <span id="bass-perc">0%</span></span></div>
             <div class="line"><span class="white vis-label">Mid:</span><span class="yellow">[<span id="bar-mid">..........</span>] <span id="mid-perc">0%</span></span></div>
@@ -86,15 +87,15 @@
     </div>
 
     <div class="draggable-widget" id="widget-media">
-        <div class="gray">MEDIA.EXE</div>
-        <div class="gray divider">--------------------------------------------------------------------------------</div>
+        <div class="header-text">MEDIA.EXE</div>
+        <div class="divider-text divider">--------------------------------------------------------------------------------</div>
         <div class="media-table">
             <div class="media-header white">
                 <div class="col">Artist</div>
                 <div class="col">Title</div>
                 <div class="col">Album</div>
             </div>
-            <div class="gray divider">--------------------------------------------------------------------------------</div>
+            <div class="divider-text divider">--------------------------------------------------------------------------------</div>
             <div class="media-row white">
                 <div class="col" id="artist">Idle</div>
                 <div class="col" id="title">Waiting for media...</div>
@@ -102,7 +103,7 @@
             </div>
         </div>
         
-        <div class="gray double-divider">================================================================================</div>
+        <div class="divider-text double-divider">================================================================================</div>
         <div class="playing-row white">
             <span style="margin-right: 10px;">Playing:</span>
             <span id="playing-bar" class="playing-line">-------------------------------------------------------------------</span>
@@ -126,8 +127,8 @@
 
     <div class="draggable-widget" id="widget-lyrics">
         <div class="spacer"></div>
-        <div class="gray">LYRICS.EXE</div>
-        <div class="gray divider">--------------------------------------------------------------------------------</div>
+        <div class="header-text">LYRICS.EXE</div>
+        <div class="divider-text divider">--------------------------------------------------------------------------------</div>
         
         <div id="lyrics-container" class="lyrics-content">
             <span class="dim">Waiting for input stream...</span>

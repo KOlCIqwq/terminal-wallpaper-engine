@@ -1,8 +1,10 @@
 const CACHE_KEY = "specs"
 const overrides = {
+    os: false,
     cpu: false,
     gpu: false,
-    ram: false
+    ram: false,
+    disk: false
 };
 // raw inputs
 const userLocation = {
@@ -39,27 +41,91 @@ let clock2City = localStorage.getItem('clock2City') || "";
 let clock2Tz = localStorage.getItem('clock2Tz') || "";
 let use24hFormat = false;
 
-function loadCachedSpecs(){
+let charFilled = '|';
+let charEmpty = '.';
+
+const fallbackData = {
+    os: "Detecting OS...",
+    cpu_name: "Loading CPU...",
+    gpu_name: "Loading GPU...",
+    ram_total: "0.0 GB",
+    disk_total: "0.0 GB",
+    cpu_percent: 5,
+    gpu_percent: 2,
+    ram_percent: 45,
+    disk_percent: 60
+};
+
+let customLogText = "";
+
+function updateHardwareUI(data, isLive) {
+    if (data.os && !overrides.os) document.getElementById('os').textContent = data.os;
+    if (data.cpu_name && !overrides.cpu) document.getElementById('cpu').textContent = data.cpu_name;
+    if (data.gpu_name && !overrides.gpu) document.getElementById('gpu').textContent = data.gpu_name;
+    if (data.ram_total && !overrides.ram) document.getElementById('ram').textContent = data.ram_total;
+    if (data.disk_total && !overrides.disk) document.getElementById('disk').textContent = data.disk_total;
+
+    if (data.cpu_percent !== undefined) {
+        const bar = generateAsciiBar(data.cpu_percent);
+        document.getElementById('cpu-bar').innerHTML = `${bar} ${data.cpu_percent}%`;
+    }
+    if (data.gpu_percent !== undefined) {
+        const bar = generateAsciiBar(data.gpu_percent);
+        document.getElementById('gpu-bar').innerHTML = `${bar} ${data.gpu_percent}%`;
+    }
+    if (data.ram_percent !== undefined) {
+        const bar = generateAsciiBar(data.ram_percent);
+        const extra = (isLive && data.ram_used !== undefined) ? ` <span class="white">(${data.ram_used} GB)</span>` : "";
+        document.getElementById('ram-bar').innerHTML = `${bar} ${data.ram_percent}%${extra}`;
+    }
+    if (data.disk_percent !== undefined) {
+        const bar = generateAsciiBar(data.disk_percent);
+        const extra = (isLive && data.disk_used !== undefined) ? ` <span class="white">(${data.disk_used} / ${data.disk_total})</span>` : "";
+        document.getElementById('disk-bar').innerHTML = `${bar} ${data.disk_percent}%${extra}`;
+    }
+}
+
+function loadCachedSpecs() {
     const cached = localStorage.getItem(CACHE_KEY)
-    if (cached){
-        try{
+    if (cached) {
+        try {
             const data = JSON.parse(cached);
-            if (data.os) document.getElementById('os').textContent = data.os;
-            if (data.cpu_name) document.getElementById('cpu').textContent = data.cpu_name;
-            if (data.gpu_name) document.getElementById('gpu').textContent = data.gpu_name;
-            if (data.ram_total) document.getElementById('ram').textContent = data.ram_total;
-            if (data.disk_total) document.getElementById('disk').textContent = data.disk_total;
+            if (data.os) { 
+                fallbackData.os = data.os; 
+                if (!overrides.os) document.getElementById('os').textContent = data.os; 
+            }
+            if (data.cpu_name) { 
+                fallbackData.cpu_name = data.cpu_name; 
+                if (!overrides.cpu) document.getElementById('cpu').textContent = data.cpu_name; 
+            }
+            if (data.gpu_name) { 
+                fallbackData.gpu_name = data.gpu_name; 
+                if (!overrides.gpu) document.getElementById('gpu').textContent = data.gpu_name; 
+            }
+            if (data.ram_total) { 
+                fallbackData.ram_total = data.ram_total; 
+                if (!overrides.ram) document.getElementById('ram').textContent = data.ram_total; 
+            }
+            if (data.disk_total) { 
+                fallbackData.disk_total = data.disk_total; 
+                if (!overrides.disk) document.getElementById('disk').textContent = data.disk_total; 
+            }
         } catch (e) {
             localStorage.removeItem(CACHE_KEY);
         }
     }
 }
 
-function generateAsciiBar(percent, length = 20) {
-    const filledLen = Math.round((percent / 100) * length);
-    const emptyLen = length - filledLen;
-    // Creates: [||||||......]
-    return '[' + '|'.repeat(filledLen) + '.'.repeat(emptyLen) + '] ' + percent.toFixed(1) + '%';
+function generateAsciiBar(percent, totalLength = 20) {
+    const clampedPercent = Math.max(0, Math.min(100, percent));
+    const filledCount = Math.round((clampedPercent / 100) * totalLength);
+    const emptyCount = totalLength - filledCount;
+    
+    // Build the string using the declared char
+    const filledStr = charFilled.repeat(filledCount);
+    const emptyStr = charEmpty.repeat(emptyCount);
+    
+    return `[${filledStr}<span class="gray">${emptyStr}</span>]`;
 }
 
 function formatTime(seconds){
@@ -151,7 +217,7 @@ function fetchSystemSpecs() {
             if (!isPythonServerRunning) {
                 console.log("Python Server Reconnected!");
                 isPythonServerRunning = true;
-                
+                document.getElementById('log_text').textContent = overrides.log ? customLogText : "";
                 // Clear the UI locks so the progress bar unfreezes instantly
                 lastSeekTime = 0;
                 optimisticStatus = null;
@@ -176,41 +242,9 @@ function fetchSystemSpecs() {
                     optimisticStatus = null; 
                 }
             }
-            // Static Info
-            if (data.os) document.getElementById('os').textContent = data.os;
-            
-            if (data.cpu_name && !overrides.cpu) {
-                document.getElementById('cpu').textContent = data.cpu_name;
-            }
-            if (data.gpu_name && !overrides.gpu) {
-                document.getElementById('gpu').textContent = data.gpu_name;
-            }
-            if (data.ram_total && data.ram_percent !== undefined && !overrides.ram) {
-                document.getElementById('ram').textContent = data.ram_total;
-            }
 
-            // Dynamic Info
-            if (data.cpu_percent !== undefined) {
-                const bar = generateAsciiBar(data.cpu_percent);
-                document.getElementById('cpu-bar').textContent = bar;
-            }
-
-            if (data.gpu_percent !== undefined) {
-                const bar = generateAsciiBar(data.gpu_percent);
-                document.getElementById('gpu-bar').textContent = bar;
-            }
-
-            if (data.ram_total && data.ram_percent !== undefined) {
-                document.getElementById('ram').textContent = data.ram_total;
-                const bar = generateAsciiBar(data.ram_percent);
-                document.getElementById('ram-bar').textContent = `${bar} (${data.ram_used} GB)`;
-            }
-            
-            if (data.disk_total && data.disk_used !== undefined) {
-                document.getElementById('disk').textContent = data.disk_total;
-                const bar = generateAsciiBar(data.disk_percent);
-                document.getElementById('disk-bar').textContent = `${bar} (${data.disk_used} / ${data.disk_total})`;
-            }
+            // Static and Dynamic Info
+            updateHardwareUI(data, true);
 
             // Process current duration
             const trackSignature = `${data.media_artist} - ${data.media_title}`;
@@ -288,7 +322,8 @@ function fetchSystemSpecs() {
         .catch(err => {
             let justSwitched = isPythonServerRunning;
             isPythonServerRunning = false;
-            document.getElementById('os').textContent = "[ Native Mode Active ]";
+            updateHardwareUI(fallbackData, false);
+            document.getElementById('log_text').textContent = "[ Native Mode Active ]";
             if (justSwitched && typeof updateNativeUI === 'function') {
                 updateNativeUI();
                 currentMediaPosition = nativeState.position;
@@ -314,6 +349,8 @@ if (!window.wallpaperPropertyListener) {
 }
 
 window.myPropertyHandlers.push(function(properties) {
+    const root = document.documentElement;
+
     let isEditMode = false;
 
     // Toggle Edit Mode
@@ -329,15 +366,42 @@ window.myPropertyHandlers.push(function(properties) {
 
     if (properties.username) {
         const value = properties.username.value.trim();
-        if (value != ""){
+        overrides.username = value !== "";
+        if (overrides.username) {
             document.getElementById('username').textContent = value;
+        } else {
+            document.getElementById('username').textContent = "user@System";
         }
     }
+
+    if (properties.log) {
+        const value = properties.log.value.trim();
+        overrides.log = value !== "";
+        if (overrides.log) {
+            document.getElementById('log_text').textContent = value;
+        } else {
+            // Reverts to the default divider line if empty
+            document.getElementById('log_text').textContent = "";
+        }
+    } 
+
+    if (properties.custom_os) {
+        const value = properties.custom_os.value.trim();
+        overrides.os = value !== "";
+        if (overrides.os) {
+            document.getElementById('os').textContent = value;
+        } else {
+            document.getElementById('os').textContent = fallbackData.os;
+        }
+    }
+
     if (properties.custom_cpu) {
         const value = properties.custom_cpu.value.trim();
         overrides.cpu = value !== "";
         if (overrides.cpu) {
             document.getElementById('cpu').textContent = value;
+        } else {
+            document.getElementById('cpu').textContent = fallbackData.cpu_name;
         }
     }
 
@@ -346,6 +410,8 @@ window.myPropertyHandlers.push(function(properties) {
         overrides.gpu = value !== "";
         if (overrides.gpu) {
             document.getElementById('gpu').textContent = value;
+        } else {
+            document.getElementById('gpu').textContent = fallbackData.gpu_name;
         }
     }
 
@@ -354,7 +420,30 @@ window.myPropertyHandlers.push(function(properties) {
         overrides.ram = value !== "";
         if (overrides.ram) {
             document.getElementById('ram').textContent = value;
+        } else {
+            document.getElementById('ram').textContent = fallbackData.ram_total;
         }
+    }
+
+    if (properties.custom_disk) {
+        const value = properties.custom_disk.value.trim();
+        overrides.disk = value !== "";
+        if (overrides.disk) {
+            document.getElementById('disk').textContent = value;
+        } else {
+            document.getElementById('disk').textContent = fallbackData.disk_total;
+        }
+    }
+
+    // fallback
+    if (properties.fake_cpu) fallbackData.cpu_percent = properties.fake_cpu.value;
+    if (properties.fake_gpu) fallbackData.gpu_percent = properties.fake_gpu.value;
+    if (properties.fake_ram) fallbackData.ram_percent = properties.fake_ram.value;
+    if (properties.fake_disk) fallbackData.disk_percent = properties.fake_disk.value;
+
+    // Instantly redraw the fallback bars if adjusting sliders while offline
+    if (!isPythonServerRunning && typeof updateHardwareUI === 'function') {
+        updateHardwareUI(fallbackData, false);
     }
 
     let shouldUpdateWeather = false;
@@ -521,6 +610,35 @@ window.myPropertyHandlers.push(function(properties) {
     if (properties.use_24h_format !== undefined) {
         use24hFormat = properties.use_24h_format.value;
     }
+
+    const parseWeColor = (val) => val.split(' ').map(c => Math.round(parseFloat(c) * 255)).join(', ');
+    const parseWeHex = (val) => `rgb(${parseWeColor(val)})`;
+
+    if (properties.widget_bg_color) {
+        root.style.setProperty('--widget-bg-rgb', parseWeColor(properties.widget_bg_color.value));
+    }
+    if (properties.widget_bg_opacity) {
+        root.style.setProperty('--widget-bg-opacity', properties.widget_bg_opacity.value / 100);
+    }
+    
+    // Text Colors
+    if (properties.color_white) root.style.setProperty('--text-white', parseWeHex(properties.color_white.value));
+    if (properties.color_white) root.style.setProperty('--text-main', parseWeHex(properties.color_white.value)); // Tie base text to white
+    
+    if (properties.color_yellow) root.style.setProperty('--text-yellow', parseWeHex(properties.color_yellow.value));
+    if (properties.color_blue) root.style.setProperty('--text-blue', parseWeHex(properties.color_blue.value));
+    if (properties.color_green) root.style.setProperty('--text-green', parseWeHex(properties.color_green.value));
+    if (properties.color_gray) root.style.setProperty('--text-gray', parseWeHex(properties.color_gray.value));
+
+    if (properties.color_header) root.style.setProperty('--text-header', parseWeHex(properties.color_header.value));
+    if (properties.color_divider) root.style.setProperty('--text-divider', parseWeHex(properties.color_divider.value));
+
+    if (properties.bar_filled_char) {
+        charFilled = properties.bar_filled_char.value.charAt(0) || '|'; // Fallback to | if empty
+    }
+    if (properties.bar_empty_char) {
+        charEmpty = properties.bar_empty_char.value.charAt(0) || '.'; // Fallback to . if empty
+    }
 });
 
 const track_info = {
@@ -664,9 +782,16 @@ function getAverage(array, start, end) {
 
 function updateBar(elementId, value) {
     const chars = 20; 
-    const filled = Math.floor(Math.min(value, 1) * chars);
-    const bar = "|".repeat(filled).padEnd(chars, ".");
-    document.getElementById(elementId).textContent = bar;
+    const clampedValue = Math.max(0, Math.min(value, 1));
+    const filledCount = Math.floor(clampedValue * chars);
+    const emptyCount = chars - filledCount;
+    
+    const filledStr = charFilled.repeat(filledCount);
+    const emptyStr = charEmpty.repeat(emptyCount);
+    
+    const bar = `${filledStr}<span class="gray">${emptyStr}</span>`;
+    
+    document.getElementById(elementId).innerHTML = bar;
 }
 
 function updatePercent(elementId, val){
@@ -910,7 +1035,7 @@ function fetchTimezoneForClock(cityName, clockNum) {
                 const loc = data.results[0];
                 const tz = loc.timezone;
                 const validName = loc.name; 
-                const coords = { lon: loc.longitude, lat: loc.latitude }; // <-- Grabbing the GPS!
+                const coords = { lon: loc.longitude, lat: loc.latitude };
                 
                 if (clockNum === 1) {
                     clock1City = validName; clock1Tz = tz; window.clock1Coords = coords;
@@ -930,5 +1055,5 @@ function fetchTimezoneForClock(cityName, clockNum) {
                 }
             }
         })
-        .catch(err => console.log("Clock Fetch Offline (Using Cache)", err));
+        .catch(err => console.log("Clock Fetch Offline", err));
 }

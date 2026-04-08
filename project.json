@@ -46,19 +46,74 @@
                 "type" : "textinput",
                 "value" : ""
             },
-            "custom_cpu" : 
+            "log" : 
             {
                 "order": 7,
+                "text" : "Custom Text",
+                "type" : "textinput",
+                "value" : ""
+            },
+            "custom_cpu" : 
+            {
+                "order": 8,
                 "text" : "CPU Name",
                 "type" : "textinput",
                 "value" : ""
             },
             "custom_gpu" : 
             {
-                "order": 8,
+                "order": 9,
                 "text" : "GPU Name",
                 "type" : "textinput",
                 "value" : ""
+            },
+            "custom_os" : {
+                "order": 10,
+                "text" : "OS Name",
+                "type" : "textinput",
+                "value" : ""
+            },
+            "custom_disk" : {
+                "order": 11,
+                "text" : "Disk Size",
+                "type" : "textinput",
+                "value" : ""
+            },
+            "fake_cpu": {
+                "order": 12,
+                "text": "CPU %",
+                "type": "slider",
+                "min": 0, "max": 100, "value": 5
+            },
+            "fake_gpu": {
+                "order": 13,
+                "text": "GPU %",
+                "type": "slider",
+                "min": 0, "max": 100, "value": 2
+            },
+            "fake_ram": {
+                "order": 14,
+                "text": "RAM %",
+                "type": "slider",
+                "min": 0, "max": 100, "value": 45
+            },
+            "fake_disk": {
+                "order": 15,
+                "text": "Disk %",
+                "type": "slider",
+                "min": 0, "max": 100, "value": 60
+            },
+            "bar_filled_char": {
+                "order": 16,
+                "text": "Bar Filled",
+                "type": "textinput",
+                "value": "|"
+            },
+            "bar_empty_char": {
+                "order": 17,
+                "text": "Bar Empty",
+                "type": "textinput",
+                "value": "."
             },
             "image_group": {
                 "order": 200,
@@ -97,6 +152,67 @@
                 "text": "Reset Layout (Toggle to trigger)",
                 "type": "bool",
                 "value": false
+            },
+            "theme_group": {
+                "order": 350,
+                "text": "Widget Theme Settings",
+                "type": "group"
+            },
+            "widget_bg_color": {
+                "order": 351,
+                "text": "Widget Background Color",
+                "type": "color",
+                "value": "0.02 0.02 0.02"
+            },
+            "widget_bg_opacity": {
+                "order": 352,
+                "text": "Widget Background Opacity",
+                "type": "slider",
+                "min": 0,
+                "max": 100,
+                "value": 0
+            },
+            "color_white": {
+                "order": 353,
+                "text": "Primary Text",
+                "type": "color",
+                "value": "0.82 0.82 0.82"
+            },
+            "color_yellow": {
+                "order": 354,
+                "text": "Accent Text",
+                "type": "color",
+                "value": "0.90 0.75 0.48"
+            },
+            "color_blue": {
+                "order": 355,
+                "text": "Highlight Text",
+                "type": "color",
+                "value": "0.23 0.55 0.92"
+            },
+            "color_green": {
+                "order": 356,
+                "text": "Active Text",
+                "type": "color",
+                "value": "0.29 0.96 0.15"
+            },
+            "color_gray": {
+                "order": 357,
+                "text": "Dimmed Text",
+                "type": "color",
+                "value": "0.33 0.33 0.33"
+            },
+            "color_header": {
+                "order": 358,
+                "text": "Header Text (.EXE)",
+                "type": "color",
+                "value": "0.53 0.53 0.53"
+            },
+            "color_divider": {
+                "order": 359,
+                "text": "Dividers (---, ===)",
+                "type": "color",
+                "value": "0.33 0.33 0.33"
             },
             "visibility_group": {
                 "order": 400,
@@ -200,7 +316,7 @@
             },
             "radar_group": {
                 "order": 600,
-                "text": "Radar Map Settings",
+                "text": "Map Settings",
                 "type": "group"
             },
             "map_image_size": {

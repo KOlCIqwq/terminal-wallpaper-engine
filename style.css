@@ -1,3 +1,20 @@
+:root {
+    /* Default Colors */
+    --widget-bg-rgb: 5, 5, 5;
+    --widget-bg-opacity: 0;
+    --widget-border: rgba(255, 255, 255, 0);
+    
+    --text-main: #cccccc;
+    --text-white: #d1d1d1;
+    --text-gray: #555555;
+    --text-yellow: #e5c07b;
+    --text-blue: #3b8eea;
+    --text-green: #4af626;
+
+    --text-header: #888888;
+    --text-divider: #555555;
+}
+
 html, body {
     margin: 0;
     padding: 0;
@@ -8,7 +25,7 @@ html, body {
 
 body {
     background-color: #050505;
-    color: #cccccc;
+    color: var(--text-main);
     font-family: 'Consolas', 'Courier New', monospace;
     font-size: 15px;
     line-height: 1.3;
@@ -21,12 +38,10 @@ body {
     padding: 15px; 
     box-sizing: border-box;
     
-    background-color: rgba(5, 5, 5, 0); 
-    border: 1px solid rgba(255, 255, 255, 0); 
+    /* Dynamically controlled background and border */
+    background-color: rgba(var(--widget-bg-rgb), var(--widget-bg-opacity)); 
+    border: 1px solid var(--widget-border); 
     border-radius: 8px;
-    
-    /* backdrop-filter: blur(4px); 
-    -webkit-backdrop-filter: blur(4px); */
 
     transition: border 0.2s, background-color 0.2s;
 }
@@ -100,13 +115,15 @@ body {
 }
 
 .media-btn:active {
-    color: #4af626;
+    color: var(--text-green);
 }
 
-.blue { color: #3b8eea; }
-.white { color: #d1d1d1; }
-.gray { color: #555555; }
-.yellow { color: #e5c07b; }
+.blue { color: var(--text-blue); }
+.white { color: var(--text-white); }
+.gray { color: var(--text-gray); }
+.yellow { color: var(--text-yellow); }
+.header-text { color: var(--text-header); font-weight: bold; }
+.divider-text { color: var(--text-divider); }
 
 .sys-block {
     display: flex;
@@ -208,8 +225,8 @@ body {
 .lyric-line.active {
     opacity: 1;
     font-weight: bold;
-    color: #4af626;
-    text-shadow: 0 0 5px #4af626;
+    color: var(--text-green);
+    text-shadow: 0 0 5px var(--text-green);
 }
 
 .lyric-line.active::before {
