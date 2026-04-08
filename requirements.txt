@@ -1,3 +1,6 @@
-gpustat
-wmi
-winsdk
+psutil 
+wmi 
+pywin32 
+gpustat 
+winsdk 
+asyncio
