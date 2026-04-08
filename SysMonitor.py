@@ -14,6 +14,7 @@ import time
 import random
 import ctypes
 from urllib.parse import urlparse, parse_qs
+import winreg
 
 try:
     from winsdk.windows.media.control import GlobalSystemMediaTransportControlsSessionManager
@@ -72,6 +73,13 @@ async def get_media_info(fetch_text = False):
         playback_info = current_session.get_playback_info()
         status = playback_info.playback_status if playback_info else 0 # 4=Playing, 5=Paused
         
+        if status == 4:
+            status_str = "Playing"
+        elif status == 5:
+            status_str = "Paused"
+        else:
+            status_str = "Stopped"
+        
         if fetch_text:
             try:
                 props = await current_session.try_get_media_properties_async()
@@ -79,6 +87,10 @@ async def get_media_info(fetch_text = False):
                 cached_artist = props.artist
             except:
                 pass
+            
+        if status_str == "Stopped":
+            cached_title = "No Media"
+            cached_artist = ""
 
         timeline = current_session.get_timeline_properties()
         position = timeline.position.total_seconds() if timeline else 0
@@ -212,10 +224,14 @@ def monitor():
             last_track_title = title
             cur_pos = 0
             reset = True
-        elif status == 'Paused':
-            pass
-        else:
+        elif status == 'Playing':
             cur_pos += dt
+        elif status == 'Stopped':
+            cur_pos = 0
+            # Force everything to blank states
+            media_data['media_title'] = "No Media"
+            media_data['media_artist'] = ""
+            media_data['media_duration'] = 0
         
         media_data['media_position'] = cur_pos
         system_state.update(media_data)
@@ -270,7 +286,7 @@ async def media_seek(position_seconds):
             ticks = int(position_seconds * 10000000)
             await current_session.try_change_playback_position_async(ticks)
         except Exception as e:
-            print(f"--> [DEBUG] Seek failed: {e}")
+            print(f"Seek failed: {e}")
         
 class RequestHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -338,6 +354,31 @@ def run_server():
         server.serve_forever()
     except KeyboardInterrupt:
         server.server_close()
+        
+def add_to_startup():
+    app_name = "SysMonitor" 
+    
+    # Get the path of the current executable
+    if getattr(sys, 'frozen', False):
+        exe_path = sys.executable
+    else:
+        # Fallback if running as a normal .py script
+        exe_path = os.path.abspath(__file__)
+        
+    try:
+        # Open the registry key where startup programs are listed
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Run",
+            0,
+            winreg.KEY_SET_VALUE
+        )
+        # Set the value
+        winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, exe_path)
+        winreg.CloseKey(key)
+    except Exception as e:
+        print(f"Failed to add to startup: {e}")
 
 if __name__ == '__main__':
+    add_to_startup()
     run_server()
