@@ -27,30 +27,51 @@ function parseLRC(lrcString) {
     return result;
 }
 
-function getLyrics(title, artist){
-    const params = new URLSearchParams({
-        artist_name: artist,
-        track_name: title
-    });
-    document.getElementById('lyrics-container').innerHTML = '<br><span class="dim">Downloading data packet...</span>';
-    fetch(`https://lrclib.net/api/get?${params.toString()}`)
-        .then(response => {
-            if (!response.ok) throw new Error("Lyrics not found or Server down");
-            return response.json();
-        })
-        .then(data => {
-            if (data.syncedLyrics) {
-                currentLyricsData = parseLRC(data.syncedLyrics);
-                renderLyricsToDom(); // Initial render
-            } else {
-                document.getElementById('lyrics-container').innerHTML = '<br><span class="dim">Error: Sync data missing.</span>';
-                currentLyricsData = [];
+async function getLyrics(title, artist) {
+    const container = document.getElementById('lyrics-container');
+    container.innerHTML = '<br><span class="dim">Downloading data packet...</span>';
+    
+    const cTitle = cleanTitle(title);
+    const cArtist = cleanArtist(artist);
+
+    const queries = [
+        { t: title, a: artist },  // Exact original match
+        { t: cTitle, a: artist }, // Cleaned title, exact artist
+        { t: cTitle, a: cArtist } // Cleaned title, primary artist only
+    ];
+
+    // Deduplicate queries in case the cleanup didn't change the strings
+    const uniqueQueries = queries.filter((q, index, self) =>
+        index === self.findIndex((t) => t.t === q.t && t.a === q.a)
+    );
+
+    // Try each query in sequence
+    for (const query of uniqueQueries) {
+        try {
+            const params = new URLSearchParams({
+                artist_name: query.a,
+                track_name: query.t
+            });
+            
+            const response = await fetch(`https://lrclib.net/api/get?${params.toString()}`);
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.syncedLyrics) {
+                    currentLyricsData = parseLRC(data.syncedLyrics);
+                    renderLyricsToDom();
+                    return; // Exit when found 
+                }
             }
-        })
-        .catch(err => {
-            document.getElementById('lyrics-container').innerHTML = '<br><span class="dim">Target offline. No lyrics.</span>';
-            currentLyricsData = [];
-        });
+        } catch (err) {
+            // Silently ignore errors for current attempt and let the loop try the next fallback
+            console.log(`Failed query for "${query.t}" by "${query.a}", trying next...`);
+        }
+    }
+
+    // If the loop finishes without returning, all fallbacks failed.
+    container.innerHTML = '<br><span class="dim">Target offline. No sync data found.</span>';
+    currentLyricsData = [];
 }
 
 function renderLyricsToDom() {
@@ -83,11 +104,11 @@ function syncLyrics(currentPositionSeconds) {
         }
     }
 
-    if (activeIndex !== -1) {
+    /* if (activeIndex !== -1) {
         console.log(`Active Line [${activeIndex}]: "${activeText}" at time ${currentLyricsData[activeIndex].time}`);
     } else {
         console.log("No active line found for time:", searchTime);
-    }
+    } */
 
     // UI Updates
     if (activeIndex !== -1) {
@@ -107,4 +128,16 @@ function syncLyrics(currentPositionSeconds) {
             });
         }
     }
+}
+
+// Removes "(feat. xxx)", "[ft. xxx]", "(with xxx)", or "- feat. xxx"
+function cleanTitle(title) {
+    let cleaned = title.replace(/\s*[\(\[](feat\.|ft\.|featuring|with)\s+[^)\]]+[\)\]]/gi, '');
+    cleaned = cleaned.replace(/\s*-\s+(feat\.|ft\.|featuring|with).*$/gi, '');
+    return cleaned.trim();
+}
+
+// Keeps only the primary artist by splitting at common delimiters
+function cleanArtist(artist) {
+    return artist.split(/,|&|\+| and | ft\.? | feat\.? | featuring /i)[0].trim();
 }
