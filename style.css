@@ -269,3 +269,16 @@ body {
     z-index: -1; /* Top layer */
     pointer-events: none; /* Allows clicks to pass through */
 }
+
+.lyrics-content.unsynced-view {
+    /* Remove the fade mask so plain text is 100% legible */
+    mask-image: none;
+    -webkit-mask-image: none;
+    
+    /* Completely hide native scrollbars */
+    scrollbar-width: none; /* Firefox */
+}
+
+.lyrics-content.unsynced-view::-webkit-scrollbar {
+    display: none; /* Webkit / Wallpaper Engine */
+}

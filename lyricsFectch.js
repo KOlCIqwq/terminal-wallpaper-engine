@@ -123,9 +123,20 @@ async function getLyrics(title, artist) {
 
 function renderLyricsToDom() {
     const container = document.getElementById('lyrics-container');
+    const scrollControls = document.getElementById('lyrics-scroll-controls');
     container.innerHTML = ''; // Clear
 
     const isUnsynced = currentLyricsData.isSynced === false;
+
+    // when unsynced, make it able to scroll
+    if (isUnsynced) {
+        container.classList.add('unsynced-view');
+        container.scrollTop = 0; 
+        if (scrollControls) scrollControls.style.display = "flex"; // Show buttons
+    } else {
+        container.classList.remove('unsynced-view');
+        if (scrollControls) scrollControls.style.display = "none"; // Hide buttons
+    }
     
     currentLyricsData.forEach((line, lineIndex) => {
         const div = document.createElement('div');

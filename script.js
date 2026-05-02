@@ -1057,3 +1057,25 @@ function fetchTimezoneForClock(cityName, clockNum) {
         })
         .catch(err => console.log("Clock Fetch Offline", err));
 }
+
+const btnLyricUp = document.getElementById('btn-lyric-up');
+const btnLyricDown = document.getElementById('btn-lyric-down');
+
+if (btnLyricUp && btnLyricDown) {
+    // How many pixels to jump per click (adjust to taste)
+    const scrollJump = 60; 
+
+    btnLyricUp.addEventListener('click', () => {
+        const container = document.getElementById('lyrics-container');
+        if (container) {
+            container.scrollBy({ top: -scrollJump, behavior: 'smooth' });
+        }
+    });
+
+    btnLyricDown.addEventListener('click', () => {
+        const container = document.getElementById('lyrics-container');
+        if (container) {
+            container.scrollBy({ top: scrollJump, behavior: 'smooth' });
+        }
+    });
+}
