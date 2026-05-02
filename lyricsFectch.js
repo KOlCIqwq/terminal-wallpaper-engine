@@ -44,22 +44,29 @@ async function getLyrics(title, artist) {
     const uniqueQueries = queries.filter((q, index, self) =>
         index === self.findIndex((t) => t.t === q.t && t.a === q.a)
     );
+
+    let savedUnsyncedLyrics = null;
     
     // Try Lyrics Plus
     for (const query of uniqueQueries) {
         try {
             const lpData = await fetchLyricsPlusAPI(query.t, query.a);
             if (lpData && lpData.length > 2) {
-                currentLyricsData = lpData;
-                renderLyricsToDom();
-                return; // Exit on success
+                if (lpData.isSynced) {
+                    currentLyricsData = lpData;
+                    renderLyricsToDom();
+                    return;
+                } else if (!savedUnsyncedLyrics) {
+                    console.log(`[Lyrics Plus] Found unsynced text for "${query.t}". Saving just in case...`);
+                    savedUnsyncedLyrics = lpData; // Save it
+                }
             }
         } catch (err) {
             console.log(`[Lyrics Plus] Bypassed for "${query.t}":`, err.message);
         }
     }
 
-    // Try Better Lyrics first
+    // Try Better Lyrics
     for (const query of uniqueQueries) {
         try {
             const blData = await fetchBetterLyricsAPI(query.t, query.a);
@@ -101,6 +108,14 @@ async function getLyrics(title, artist) {
         }
     }
 
+    // got cached unsynced
+    if (savedUnsyncedLyrics) {
+        console.log("No synced lyrics found across any provider. Deploying plain text fallback.");
+        currentLyricsData = savedUnsyncedLyrics;
+        renderLyricsToDom();
+        return; 
+    }
+
     // If the loop finishes without returning, all fallbacks failed.
     container.innerHTML = '<br><span class="dim">Target offline. No sync data found.</span>';
     currentLyricsData = [];
@@ -109,11 +124,17 @@ async function getLyrics(title, artist) {
 function renderLyricsToDom() {
     const container = document.getElementById('lyrics-container');
     container.innerHTML = ''; // Clear
+
+    const isUnsynced = currentLyricsData.isSynced === false;
     
     currentLyricsData.forEach((line, lineIndex) => {
         const div = document.createElement('div');
         div.className = 'lyric-line';
         div.id = `line-${lineIndex}`;
+
+        if (isUnsynced) {
+            div.style.opacity = "1";
+        }
         
         // if better lyrics or lyrics plus is fetched
         if (line.words && line.words.length > 0) {
@@ -133,7 +154,8 @@ function renderLyricsToDom() {
 }
 
 function syncLyrics(currentPositionSeconds) {
-    if (!currentLyricsData.length) return;
+    // empty or unsynced
+    if (!currentLyricsData.length || currentLyricsData.isSynced === false) return;
     // smooth out
     const searchTime = currentPositionSeconds + 0.99; 
     let activeLineIndex = -1;

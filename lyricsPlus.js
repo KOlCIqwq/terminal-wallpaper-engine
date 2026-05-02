@@ -11,6 +11,8 @@ function parseLyricsPlus(jsonResponse) {
     const result = [];
     result.push({ time: 0, text: ' ' }); // Start padding
 
+    const isSynced = jsonResponse.type === "Word" || jsonResponse.type === "Line";
+
     if (jsonResponse && jsonResponse.lyrics && Array.isArray(jsonResponse.lyrics)) {
         jsonResponse.lyrics.forEach(line => {
             // Convert milliseconds to seconds
@@ -39,6 +41,7 @@ function parseLyricsPlus(jsonResponse) {
     }
 
     result.push({ time: 9999, text: ' ' }); // End padding
+    result.isSynced = isSynced;
     return result;
 }
 
