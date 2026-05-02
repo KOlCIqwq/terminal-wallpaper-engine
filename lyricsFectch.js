@@ -44,6 +44,38 @@ async function getLyrics(title, artist) {
     const uniqueQueries = queries.filter((q, index, self) =>
         index === self.findIndex((t) => t.t === q.t && t.a === q.a)
     );
+    
+    // Try Lyrics Plus
+    for (const query of uniqueQueries) {
+        try {
+            const lpData = await fetchLyricsPlusAPI(query.t, query.a);
+            if (lpData && lpData.length > 2) {
+                currentLyricsData = lpData;
+                renderLyricsToDom();
+                return; // Exit on success
+            }
+        } catch (err) {
+            console.log(`[Lyrics Plus] Bypassed for "${query.t}":`, err.message);
+        }
+    }
+
+    // Try Better Lyrics first
+    for (const query of uniqueQueries) {
+        try {
+            const blData = await fetchBetterLyricsAPI(query.t, query.a);
+            
+            // Check if we got more than just the 0 and 9999 padding objects
+            if (blData && blData.length > 2) {
+                currentLyricsData = blData;
+                renderLyricsToDom();
+                return; // Exit on success
+            }
+        } catch (err) {
+            console.error(`[Better Lyrics] Error for "${query.t}":`, err.message || err);        
+        }
+    }
+
+    console.log("[lrclib] Attempting fallback...");
 
     // Try each query in sequence
     for (const query of uniqueQueries) {
@@ -78,57 +110,91 @@ function renderLyricsToDom() {
     const container = document.getElementById('lyrics-container');
     container.innerHTML = ''; // Clear
     
-    currentLyricsData.forEach((line, index) => {
+    currentLyricsData.forEach((line, lineIndex) => {
         const div = document.createElement('div');
         div.className = 'lyric-line';
-        div.id = `line-${index}`;
-        div.textContent = line.text;
+        div.id = `line-${lineIndex}`;
+        
+        // if better lyrics or lyrics plus is fetched
+        if (line.words && line.words.length > 0) {
+            line.words.forEach((word, wordIndex) => {
+                const span = document.createElement('span');
+                span.className = 'lyric-word';
+                span.id = `word-${lineIndex}-${wordIndex}`;
+                span.textContent = word.text; // Includes the trailing spaces
+                div.appendChild(span);
+            });
+        } else {
+            // Fallback for standard lrclib LRC data
+            div.textContent = line.text;
+        }
         container.appendChild(div);
     });
 }
 
 function syncLyrics(currentPositionSeconds) {
     if (!currentLyricsData.length) return;
-    const searchTime = currentPositionSeconds + 0.99;
-
-    let activeIndex = -1;
-    let activeText = "";
+    // smooth out
+    const searchTime = currentPositionSeconds + 0.99; 
+    let activeLineIndex = -1;
 
     // Find the current active line
     for (let i = 0; i < currentLyricsData.length; i++) {
         if (currentLyricsData[i].time <= searchTime) {
-            activeIndex = i;
-            activeText = currentLyricsData[i].text;
+            activeLineIndex = i;
         } else {
             break; 
         }
     }
 
-    /* if (activeIndex !== -1) {
-        console.log(`Active Line [${activeIndex}]: "${activeText}" at time ${currentLyricsData[activeIndex].time}`);
-    } else {
-        console.log("No active line found for time:", searchTime);
-    } */
-
-    // UI Updates
-    if (activeIndex !== -1) {
+    if (activeLineIndex !== -1) {
         const previousActive = document.querySelector('.lyric-line.active');
-        if (previousActive) {
-            if (previousActive.id === `line-${activeIndex}`) return; 
-            previousActive.classList.remove('active');
-        }
-        const activeEl = document.getElementById(`line-${activeIndex}`);
-        if (activeEl) {
-            activeEl.classList.add('active');
+        
+        // Line UI Updates & Scrolling
+        if (!previousActive || previousActive.id !== `line-${activeLineIndex}`) {
+            if (previousActive) {
+                previousActive.classList.remove('active');
+                // Clean up any lingering sung words from the previous line
+                previousActive.querySelectorAll('.lyric-word.sung').forEach(w => w.classList.remove('sung'));
+            }
             
-            activeEl.scrollIntoView({
-                behavior: 'smooth', 
-                block: 'center',
-                inline: 'nearest'
+            const activeEl = document.getElementById(`line-${activeLineIndex}`);
+            if (activeEl) {
+                activeEl.classList.add('active');
+                
+                activeEl.scrollIntoView({
+                    behavior: 'smooth', 
+                    block: 'center',
+                    inline: 'nearest'
+                });
+            }
+        }
+
+        // Word Syncing
+        const activeLineData = currentLyricsData[activeLineIndex];
+        
+        if (activeLineData && activeLineData.words && activeLineData.words.length > 0) {
+            const wordSearchTime = currentPositionSeconds; 
+            
+            // Get all word spans in the current active line
+            const wordSpans = document.getElementById(`line-${activeLineIndex}`).querySelectorAll('.lyric-word');
+            
+            activeLineData.words.forEach((word, wordIndex) => {
+                const wordSpan = wordSpans[wordIndex];
+                if (wordSpan) {
+                    // If the song has passed this word's start time
+                    if (word.time <= wordSearchTime) {
+                        wordSpan.classList.add('sung');
+                    } else {
+                        // Keep it white/dim if the song hasn't reached it yet
+                        wordSpan.classList.remove('sung');
+                    }
+                }
             });
         }
     }
 }
+    
 
 // Removes "(feat. xxx)", "[ft. xxx]", "(with xxx)", or "- feat. xxx"
 function cleanTitle(title) {

@@ -225,12 +225,22 @@ body {
 .lyric-line.active {
     opacity: 1;
     font-weight: bold;
-    color: var(--text-green);
-    text-shadow: 0 0 5px var(--text-green);
+    color: var(--text-white);
+    text-shadow: none;
 }
 
 .lyric-line.active::before {
     content: "> ";
+    color: var(--text-green);
+}
+
+.lyric-word {
+    transition: color 0.1s, text-shadow 0.1s;
+}
+
+.lyric-word.sung {
+    color: var(--text-green);
+    text-shadow: 0 0 5px var(--text-green);
 }
 
 #bg-layer-image, #bg-layer-video, #bg-layer-overlay {
