@@ -251,6 +251,9 @@ function fetchSystemSpecs() {
             
             if (trackSignature !== currentTrackHash && data.media_status === 'Playing') {
                 currentTrackHash = trackSignature;
+                currentMediaPosition = 0;
+                optimisticPosition = 0;
+                lastSeekTime = 0;
                 getLyrics(data.media_title, data.media_artist);
             }
 
@@ -667,9 +670,15 @@ if (window.wallpaperRegisterMediaPropertiesListener) {
 
         const trackSignature = `${event.artist} - ${event.title}`;
         
-        // If the song changed, fetch new lyrics immediately!
+        // If the song changed, fetch new lyrics immediately
         if (trackSignature !== currentTrackHash && event.title) {
             currentTrackHash = trackSignature;
+            // reset state
+            currentMediaPosition = 0;
+            nativeMediaDuration = 0;
+            optimisticPosition = 0;
+            document.getElementById('duration').textContent = "[ --:-- / --:-- ]";
+            updatePlayingBar(0, 0);
             if (typeof getLyrics === 'function') getLyrics(event.title, event.artist);
         }
     });

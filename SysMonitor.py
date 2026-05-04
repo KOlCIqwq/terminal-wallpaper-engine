@@ -13,6 +13,8 @@ import datetime
 import time
 import random
 import ctypes
+import urllib.request
+import urllib.parse
 from urllib.parse import urlparse, parse_qs
 import winreg
 
@@ -56,22 +58,37 @@ seek_time = 0
 
 cached_title = ""
 cached_artist = ""
+fallback_duration = 0 
 
-async def get_media_info(fetch_text = False):
+def fetch_itunes_duration(title, artist):
+    global fallback_duration
+    try:
+        clean_title = title.split('(')[0].split('-')[0].strip()
+        query = urllib.parse.quote(f"{clean_title} {artist}")
+        url = f"https://itunes.apple.com/search?term={query}&entity=song&limit=1"
+        
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=3) as response:
+            data = json.loads(response.read().decode())
+            if data['resultCount'] > 0:
+                fallback_duration = data['results'][0]['trackTimeMillis'] / 1000.0
+    except:
+        pass 
+
+async def get_media_info():
     global media_manager, cached_title, cached_artist
     
-    # Only ask Windows for the manager once
     if media_manager is None:
         try:
             media_manager = await GlobalSystemMediaTransportControlsSessionManager.request_async()
         except Exception:
-            return system_state # Fallback if Windows media is unavailable
+            return system_state 
     
     current_session = media_manager.get_current_session()
     
     if current_session:
         playback_info = current_session.get_playback_info()
-        status = playback_info.playback_status if playback_info else 0 # 4=Playing, 5=Paused
+        status = playback_info.playback_status if playback_info else 0 
         
         if status == 4:
             status_str = "Playing"
@@ -80,26 +97,39 @@ async def get_media_info(fetch_text = False):
         else:
             status_str = "Stopped"
         
-        if fetch_text:
-            try:
-                props = await current_session.try_get_media_properties_async()
+        try:
+            props = await current_session.try_get_media_properties_async()
+            if props:
                 cached_title = props.title
                 cached_artist = props.artist
-            except:
-                pass
+        except:
+            pass
             
         if status_str == "Stopped":
             cached_title = "No Media"
             cached_artist = ""
 
-        timeline = current_session.get_timeline_properties()
-        position = timeline.position.total_seconds() if timeline else 0
-        duration = timeline.end_time.total_seconds() if timeline else 0
+        try:
+            timeline = current_session.get_timeline_properties()
+            if timeline:
+                start = timeline.start_time.total_seconds()
+                end = timeline.end_time.total_seconds()
+                position = timeline.position.total_seconds()
+                duration = end - start
+                
+                if duration < 0:
+                    duration = 0
+            else:
+                position = 0
+                duration = 0
+        except:
+            position = 0
+            duration = 0
 
         return {
             "media_title": cached_title,
             "media_artist": cached_artist,
-            "media_status": "Playing" if status == 4 else "Paused",
+            "media_status": status_str,
             "media_position": position,
             "media_duration": duration
         }
@@ -111,6 +141,25 @@ async def get_media_info(fetch_text = False):
             "media_position": 0,
             "media_duration": 0
         }
+
+def media_command(command):
+    if command == "playpause":
+        VK_CODE = 0xB3 
+    elif command == "next":
+        VK_CODE = 0xB0 
+    elif command == "prev":
+        VK_CODE = 0xB1 
+    else:
+        return
+        
+    ctypes.windll.user32.keybd_event(VK_CODE, 0, 0, 0) 
+    ctypes.windll.user32.keybd_event(VK_CODE, 0, 2, 0) 
+
+def keyboard_jolt():
+    """Rapidly double-taps the Play/Pause media key via hardware interrupt"""
+    media_command("playpause")
+    time.sleep(0.03)
+    media_command("playpause")
 
 def get_static():
     global system_state
@@ -150,85 +199,124 @@ def get_static():
     system_state['ram_total'] = ram_info
 
 def monitor():
-    global system_state, seek_target, seek_time
+    global system_state, seek_target, seek_time, media_manager, fallback_duration 
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
     last_track_title = ""
+    last_track_duration = 0 
     cur_pos = 0.0
     prev_skip_position = 0
     last_seek_target = -999.0
     reset = False
     startup = True
     
-    # "Prime" the CPU reader outside the loop
+    hunting_for_duration = False 
+    hunt_start_time = 0
+    keyboard_jolt_fired = False
+    hard_seek_fired = False
+    
     psutil.cpu_percent(interval=None)
     
     tick = 0
     last_tick_time = time.time()
     
     while True:
-        # Check media fast
         time.sleep(0.25)
         
         current_time = time.time()
         dt = current_time - last_tick_time
         last_tick_time = current_time
         
-        # CPU check every sec
         if tick % 4 == 0:
             system_state['cpu_percent'] = psutil.cpu_percent(interval=None)
         
-        # fetch every 8th, 2sec
-        should_fetch_text = (tick % 8 == 0) or startup
-        
         try:
-            media_data = loop.run_until_complete(get_media_info(fetch_text=should_fetch_text))
+            media_data = loop.run_until_complete(get_media_info())
         except:
             media_data = {}
         
         status = media_data.get('media_status', 'Stopped')
         title = media_data.get('media_title', '')
+        artist = media_data.get('media_artist', '')
         skipped_position = media_data.get('media_position', 0)
+        current_duration = media_data.get('media_duration', 0) 
         
-        # Instantly apply custom seek from the frontend
+        if hunting_for_duration:
+            if current_duration == 0 or current_duration == last_track_duration:
+                media_manager = None 
+                media_data['media_duration'] = fallback_duration 
+                
+                if status == 'Playing':
+                    elapsed_hunt = current_time - hunt_start_time
+                    
+                    # KEYBOARD JOLT
+                    """ if elapsed_hunt > 0.1 and not keyboard_jolt_fired:
+                        keyboard_jolt()
+                        keyboard_jolt_fired = True """
+                        
+                    """ # HARD SEEK JOLT
+                    elif elapsed_hunt > 3.5 and not hard_seek_fired and fallback_duration == 0:
+                        seek_target = cur_pos + 0.001 
+                        seek_time = current_time
+                        hard_seek_fired = True """
+            else:
+                hunting_for_duration = False
+                last_track_duration = current_duration 
+        
         if seek_target is not None:
             cur_pos = seek_target
-            last_seek_target = seek_target # track the requested pos
+            last_seek_target = seek_target 
+            
+            try:
+                seek_loop = asyncio.new_event_loop()
+                seek_loop.run_until_complete(media_seek(seek_target))
+                seek_loop.close()
+            except:
+                pass
+                
             seek_target = None
             
         if startup:
             prev_skip_position = skipped_position + 0.1
             last_track_title = title
+            last_track_duration = current_duration
             startup = False
             
-        # Block the Windows API from sending old data for 4s after seeking
         ignore_smtc = (current_time - seek_time < 4.0)
 
-        # always track api  
         if abs(prev_skip_position - skipped_position) > 0.0000001:
-            # If we get a new position from Windows, but it exactly matches the seek we just performed,
-            # it is just a severely delayed "echo" ping from the media player. We flag it to be ignored
             is_echo = (abs(skipped_position - last_seek_target) < 3.0) and (current_time - seek_time < 15.0)
             
-            if not ignore_smtc and not is_echo: # Only allow it to drag the clock if we are NOT in cooldown
+            if not ignore_smtc and not is_echo: 
                 if title == last_track_title:
                     if reset == False:
                         cur_pos = skipped_position
                     else:
                         reset = False
-            prev_skip_position = skipped_position # Always keep track of what Windows says
+            prev_skip_position = skipped_position 
             
         if title != last_track_title:
             last_track_title = title
             cur_pos = 0
             reset = True
+            
+            hunting_for_duration = True 
+            hunt_start_time = current_time 
+            keyboard_jolt_fired = False
+            hard_seek_fired = False
+            media_manager = None 
+            media_data['media_duration'] = 0 
+            
+            fallback_duration = 0
+            threading.Thread(target=fetch_itunes_duration, args=(title, artist), daemon=True).start()
+            
         elif status == 'Playing':
             cur_pos += dt
         elif status == 'Stopped':
             cur_pos = 0
-            # Force everything to blank states
+            hunting_for_duration = False 
             media_data['media_title'] = "No Media"
             media_data['media_artist'] = ""
             media_data['media_duration'] = 0
@@ -236,8 +324,6 @@ def monitor():
         media_data['media_position'] = cur_pos
         system_state.update(media_data)
         
-        #print(f"[Python] Windows API: {skipped_position:.2f}s | Python Sending: {cur_pos:.2f}s | Status: {status} | Ignoring API: {ignore_smtc}")
-        # check gpu and ram every 3rd loop 
         if tick % 12 == 0:
             try:
                 gpu_stats = gpustat.GPUStatCollection.new_query()
@@ -245,11 +331,13 @@ def monitor():
             except:
                 pass
                 
-            mem = psutil.virtual_memory()
-            system_state['ram_percent'] = mem.percent
-            system_state['ram_used'] = round(mem.used / (1024.0 ** 3) , 1)
+            try:
+                mem = psutil.virtual_memory()
+                system_state['ram_percent'] = mem.percent
+                system_state['ram_used'] = round(mem.used / (1024.0 ** 3) , 1)
+            except:
+                pass
             
-        # check the disk every minute
         if tick % 240 == 0:
             try:
                 system_state['disk_percent'] = psutil.disk_usage('/').percent
@@ -260,20 +348,7 @@ def monitor():
         tick += 1
         if tick > 1000: 
             tick = 0
-
-def media_command(command):
-    if command == "playpause":
-        VK_CODE = 0xB3 
-    elif command == "next":
-        VK_CODE = 0xB0 
-    elif command == "prev":
-        VK_CODE = 0xB1 
-    else:
-        return
-        
-    ctypes.windll.user32.keybd_event(VK_CODE, 0, 0, 0) 
-    ctypes.windll.user32.keybd_event(VK_CODE, 0, 2, 0) 
-        
+            
 async def media_seek(position_seconds):
     global media_manager
     if media_manager is None:
@@ -332,7 +407,6 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                     global seek_target, seek_time
                     seek_target = pos_sec
                     seek_time = time.time()
-                    # Create a quick loop to execute the seek
                     seek_loop = asyncio.new_event_loop()
                     seek_loop.run_until_complete(media_seek(pos_sec))
                     seek_loop.close()
@@ -358,22 +432,18 @@ def run_server():
 def add_to_startup():
     app_name = "SysMonitor" 
     
-    # Get the path of the current executable
     if getattr(sys, 'frozen', False):
         exe_path = sys.executable
     else:
-        # Fallback if running as a normal .py script
         exe_path = os.path.abspath(__file__)
         
     try:
-        # Open the registry key where startup programs are listed
         key = winreg.OpenKey(
             winreg.HKEY_CURRENT_USER,
             r"Software\Microsoft\Windows\CurrentVersion\Run",
             0,
             winreg.KEY_SET_VALUE
         )
-        # Set the value
         winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, exe_path)
         winreg.CloseKey(key)
     except Exception as e:

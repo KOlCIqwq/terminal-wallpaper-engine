@@ -108,6 +108,48 @@ async function getLyrics(title, artist) {
         }
     }
 
+    for (const query of uniqueQueries) {
+        try {
+            // Search using just the title to cast a wide net
+            const params = new URLSearchParams({ q: query.t });
+            const response = await fetch(`https://lrclib.net/api/search?${params.toString()}`);
+            
+            if (response.ok) {
+                const results = await response.json();
+                
+                // Filter the results array to ensure the artist roughly matches 
+                // (case-insensitive, partial matches allowed)
+                const validMatches = results.filter(track => 
+                    track.artistName.toLowerCase().includes(query.a.toLowerCase()) || 
+                    query.a.toLowerCase().includes(track.artistName.toLowerCase())
+                );
+
+                // Look for the first valid match with synced lyrics
+                const syncedMatch = validMatches.find(track => track.syncedLyrics);
+                if (syncedMatch) {
+                    console.log(`[lrclib] Found synced lyrics via search API for "${query.t}"`);
+                    currentLyricsData = parseLRC(syncedMatch.syncedLyrics);
+                    renderLyricsToDom();
+                    return;
+                }
+
+                // If no synced lyrics, grab plain lyrics as an absolute last resort
+                if (!savedUnsyncedLyrics) {
+                    const unsyncedMatch = validMatches.find(track => track.plainLyrics);
+                    if (unsyncedMatch) {
+                        console.log(`[lrclib] Found plain lyrics via search API for "${query.t}". Saving...`);
+                        
+                        // Structure it so it mimics the other unsynced payloads
+                        savedUnsyncedLyrics = unsyncedMatch.plainLyrics.split('\n').map(line => ({ time: 0, text: line }));
+                        savedUnsyncedLyrics.isSynced = false;
+                    }
+                }
+            }
+        } catch (err) {
+            console.log(`Failed search query for "${query.t}", trying next...`);
+        }
+    }
+
     // got cached unsynced
     if (savedUnsyncedLyrics) {
         console.log("No synced lyrics found across any provider. Deploying plain text fallback.");
