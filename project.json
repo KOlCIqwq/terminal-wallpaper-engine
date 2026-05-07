@@ -164,6 +164,12 @@
                 "text": "Widget Theme Settings",
                 "type": "group"
             },
+            "use_custom_colors": {
+                "order": 350.5,
+                "text": "Use Custom Colors (Disable Dynamic Album Colors)",
+                "type": "bool",
+                "value": false
+            },
             "widget_bg_color": {
                 "order": 351,
                 "text": "Widget Background Color",

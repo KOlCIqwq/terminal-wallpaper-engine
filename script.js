@@ -624,24 +624,52 @@ window.myPropertyHandlers.push(function(properties) {
         root.style.setProperty('--widget-bg-opacity', properties.widget_bg_opacity.value / 100);
     }
     
+    window.userThemeColors = window.userThemeColors || {};
+    if (window.useCustomColors === undefined) window.useCustomColors = false;
+
+    if (properties.use_custom_colors !== undefined) {
+        window.useCustomColors = properties.use_custom_colors.value;
+        if (window.useCustomColors) {
+            // User enabled Custom Colors: Restore sliders & clear dynamic shadow
+            if (window.userThemeColors.white) {
+                root.style.setProperty('--text-white', window.userThemeColors.white);
+                root.style.setProperty('--text-main', window.userThemeColors.white);
+            }
+            if (window.userThemeColors.header) {
+                root.style.setProperty('--text-header', window.userThemeColors.header);
+            }
+            root.style.setProperty('text-shadow', 'none'); 
+        } else {
+            // User disabled Custom Colors: Instantly extract the album art again
+            if (typeof window.reapplyDynamicColors === 'function') {
+                window.reapplyDynamicColors();
+            }
+        }
+    }
+
     // Text Colors
-    if (properties.color_white) root.style.setProperty('--text-white', parseWeHex(properties.color_white.value));
-    if (properties.color_white) root.style.setProperty('--text-main', parseWeHex(properties.color_white.value)); // Tie base text to white
+    if (properties.color_white) {
+        window.userThemeColors.white = parseWeHex(properties.color_white.value);
+        // Only physically apply the custom color if the toggle is ON
+        if (window.useCustomColors) {
+            root.style.setProperty('--text-white', window.userThemeColors.white);
+            root.style.setProperty('--text-main', window.userThemeColors.white);
+        }
+    }
     
     if (properties.color_yellow) root.style.setProperty('--text-yellow', parseWeHex(properties.color_yellow.value));
     if (properties.color_blue) root.style.setProperty('--text-blue', parseWeHex(properties.color_blue.value));
     if (properties.color_green) root.style.setProperty('--text-green', parseWeHex(properties.color_green.value));
     if (properties.color_gray) root.style.setProperty('--text-gray', parseWeHex(properties.color_gray.value));
 
-    if (properties.color_header) root.style.setProperty('--text-header', parseWeHex(properties.color_header.value));
+    if (properties.color_header) {
+        window.userThemeColors.header = parseWeHex(properties.color_header.value);
+        // Only physically apply the custom color if the toggle is ON
+        if (window.useCustomColors) {
+            root.style.setProperty('--text-header', window.userThemeColors.header);
+        }
+    }
     if (properties.color_divider) root.style.setProperty('--text-divider', parseWeHex(properties.color_divider.value));
-
-    if (properties.bar_filled_char) {
-        charFilled = properties.bar_filled_char.value.charAt(0) || '|'; // Fallback to | if empty
-    }
-    if (properties.bar_empty_char) {
-        charEmpty = properties.bar_empty_char.value.charAt(0) || '.'; // Fallback to . if empty
-    }
 });
 
 const track_info = {
