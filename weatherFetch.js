@@ -238,6 +238,10 @@ function getWeather(lon,lat){
     })
     .catch(error => {
         document.getElementById("today-weather").innerText = "Error loading weather";
+        // retry after 5 seconds
+        setTimeout(() => {
+            getWeather(lon, lat);
+        }, 5000);
     });
 }
 
