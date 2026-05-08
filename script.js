@@ -213,120 +213,107 @@ function fetchSystemSpecs() {
     fetch('http://127.0.0.1:25555/specs')
         .then(response => {
             if (!response.ok) throw new Error("Server down");
-            // reconnect
-            if (!isPythonServerRunning) {
-                console.log("Python Server Reconnected!");
-                isPythonServerRunning = true;
-                document.getElementById('log_text').textContent = overrides.log ? customLogText : "";
-                // Clear the UI locks so the progress bar unfreezes instantly
-                lastSeekTime = 0;
-                optimisticStatus = null;
-                lastPlayPauseTime = 0;
-                
-                // Force Python's UI to adopt the current Native clock so it doesn't jump
-                optimisticPosition = currentMediaPosition;
-            }
-
             return response.json();
         })
         .then(data => {
-            if (optimisticStatus !== null) {
-                // If the server finally agrees with us (and at least 1 sec passed)
-                if (data.media_status === optimisticStatus && (Date.now() - lastPlayPauseTime > 1000)) {
-                    optimisticStatus = null; // Server caught up, release the override!
-                } else if (Date.now() - lastPlayPauseTime < 8000) { 
-                    // Give the server up to 8 seconds to catch up
-                    data.media_status = optimisticStatus; 
-                } else {
-                    // Failsafe: 8 seconds passed and server still disagrees. Give up.
-                    optimisticStatus = null; 
+            try {
+                if (!isPythonServerRunning) {
+                    console.log("Python Server Reconnected!");
+                    isPythonServerRunning = true;
+                    document.getElementById('log_text').textContent = overrides.log ? customLogText : "";
+                    lastSeekTime = 0;
+                    optimisticStatus = null;
+                    lastPlayPauseTime = 0;
+                    optimisticPosition = currentMediaPosition;
                 }
-            }
 
-            // Static and Dynamic Info
-            updateHardwareUI(data, true);
-
-            // Process current duration
-            const trackSignature = `${data.media_artist} - ${data.media_title}`;
-            
-            if (trackSignature !== currentTrackHash && data.media_status === 'Playing') {
-                currentTrackHash = trackSignature;
-                currentMediaPosition = 0;
-                optimisticPosition = 0;
-                lastSeekTime = 0;
-                getLyrics(data.media_title, data.media_artist);
-            }
-
-            let isSeeking = (Date.now() - lastSeekTime < 3000);
-            let isOverriding = (optimisticStatus !== null);
-
-            let rawServerPos = data.media_position !== undefined ? parseFloat(data.media_position).toFixed(2) : "N/A";
-            let localPos = optimisticPosition.toFixed(2);
-
-            /* console.log(
-                `[Sync Debug] Server: ${rawServerPos}s (${data.media_status}) | ` + 
-                `Local: ${localPos}s (Override: ${optimisticStatus || 'None'}) | ` + 
-                `State: ${isSeeking || isOverriding ? 'TRUST LOCAL UI' : 'TRUST SERVER'}`
-            ); */
-
-            if (!isSeeking && !isOverriding) { 
-                // TRUST THE SERVER 
-                if (data.media_position !== undefined && data.media_duration !== undefined) {
-                    currentMediaPosition = parseFloat(data.media_position); // Update safety tracker
-                    
-                    let cur_position = formatTime(data.media_position);
-                    let cur_duration = formatTime(data.media_duration);
-
-                    document.getElementById('duration').textContent = `[${cur_position} / ${cur_duration}]`;
-                    updatePlayingBar(data.media_position, data.media_duration);
-                    
-                    if (typeof syncLyrics === 'function') syncLyrics(currentMediaPosition);
-                } else {
-                    document.getElementById('duration').textContent = "[ - / - ]";
-                    updatePlayingBar(0, 0);
+                if (optimisticStatus !== null) {
+                    if (data.media_status === optimisticStatus && (Date.now() - lastPlayPauseTime > 1000)) {
+                        optimisticStatus = null; 
+                    } else if (Date.now() - lastPlayPauseTime < 8000) { 
+                        data.media_status = optimisticStatus; 
+                    } else {
+                        optimisticStatus = null; 
+                    }
                 }
-            } else {
-                // TRUST THE LOCAL UI
-                if (data.media_status === 'Playing') {
-                    optimisticPosition += 0.25; 
-                }
+
+                updateHardwareUI(data, true);
+
+                const trackSignature = `${data.media_title}-${data.media_artist}`;
                 
-                if (data.media_duration !== undefined) {
-                    document.getElementById('duration').textContent = `[${formatTime(optimisticPosition)} / ${formatTime(data.media_duration)}]`;
-                    updatePlayingBar(optimisticPosition, data.media_duration);
+                if (trackSignature !== currentTrackHash && data.media_status === 'Playing') {
+                    currentTrackHash = trackSignature;
+                    currentMediaPosition = 0;
+                    optimisticPosition = 0;
+                    lastSeekTime = 0;
+                    currentLyricsData = [];
+                    getLyrics(data.media_title, data.media_artist);
                 }
-                if (typeof syncLyrics === 'function') {
-                    syncLyrics(optimisticPosition);
-                }
-            }
 
-            const playButton = document.getElementById('btn-play');
-            if (playButton) {
-                if (data.media_status === 'Playing') {
-                    playButton.textContent = "[ || ]"; 
+                let isSeeking = (Date.now() - lastSeekTime < 3000);
+                let isOverriding = (optimisticStatus !== null);
+
+                if (!isSeeking && !isOverriding) { 
+                    if (data.media_position !== undefined && data.media_duration !== undefined) {
+                        currentMediaPosition = parseFloat(data.media_position);
+                        
+                        let cur_position = formatTime(data.media_position);
+                        let cur_duration = formatTime(data.media_duration);
+
+                        document.getElementById('duration').textContent = `[${cur_position} / ${cur_duration}]`;
+                        updatePlayingBar(data.media_position, data.media_duration);
+                        
+                        if (typeof syncLyrics === 'function') syncLyrics(currentMediaPosition);
+                    } else {
+                        document.getElementById('duration').textContent = "[ - / - ]";
+                        updatePlayingBar(0, 0);
+                    }
                 } else {
-                    playButton.textContent = "[ ▶ ]"; 
+                    if (data.media_status === 'Playing') {
+                        optimisticPosition += 0.25; 
+                    }
+                    if (data.media_duration !== undefined) {
+                        document.getElementById('duration').textContent = `[${formatTime(optimisticPosition)} / ${formatTime(data.media_duration)}]`;
+                        updatePlayingBar(optimisticPosition, data.media_duration);
+                    }
+                    if (typeof syncLyrics === 'function') {
+                        syncLyrics(optimisticPosition);
+                    }
                 }
+
+                const playButton = document.getElementById('btn-play');
+                if (playButton) {
+                    playButton.textContent = data.media_status === 'Playing' ? "[ || ]" : "[ ▶ ]"; 
+                }
+
+                const dataToSave = {
+                    os: data.os,
+                    cpu_name: data.cpu_name,
+                    gpu_name: data.gpu_name,
+                    ram_total: data.ram_total,
+                    disk_total: data.disk_total
+                };
+
+                localStorage.setItem(CACHE_KEY, JSON.stringify(dataToSave));
+
+            } catch (uiError) {
+                // Log the exact error without killing the server connection
+                console.error("[UI Error] The data arrived, but formatting failed:", uiError);
             }
-
-            const dataToSave = {
-                os: data.os,
-                cpu_name: data.cpu_name,
-                gpu_name: data.gpu_name,
-                ram_total: data.ram_total,
-                disk_total: data.disk_total
-            };
-
-            localStorage.setItem(CACHE_KEY, JSON.stringify(dataToSave));
 
             // KeepAlive
             setTimeout(fetchSystemSpecs, 250);
         })
         .catch(err => {
+            console.error("[Network Error] Python server unreachable:", err);
+            
             let justSwitched = isPythonServerRunning;
             isPythonServerRunning = false;
             updateHardwareUI(fallbackData, false);
-            document.getElementById('log_text').textContent = "[ Native Mode Active ]";
+            
+            const logElement = document.getElementById('log_text');
+            if (logElement) logElement.textContent = "[ Native Mode Active ]";
+
             if (justSwitched && typeof updateNativeUI === 'function') {
                 updateNativeUI();
                 currentMediaPosition = nativeState.position;
@@ -696,7 +683,7 @@ if (window.wallpaperRegisterMediaPropertiesListener) {
         document.getElementById('artist').textContent = truncate(event.artist, maxLength);
         document.getElementById('album').textContent = truncate(event.albumTitle, maxLength);
 
-        const trackSignature = `${event.artist} - ${event.title}`;
+        const trackSignature = `${event.title}-${event.artist}`;
         
         // If the song changed, fetch new lyrics immediately
         if (trackSignature !== currentTrackHash && event.title) {
@@ -707,6 +694,7 @@ if (window.wallpaperRegisterMediaPropertiesListener) {
             optimisticPosition = 0;
             document.getElementById('duration').textContent = "[ --:-- / --:-- ]";
             updatePlayingBar(0, 0);
+            currentLyricsData = [];
             if (typeof getLyrics === 'function') getLyrics(event.title, event.artist);
         }
     });

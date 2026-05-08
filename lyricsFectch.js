@@ -28,6 +28,9 @@ function parseLRC(lrcString) {
 }
 
 async function getLyrics(title, artist) {
+    const requestHash = `${title}-${artist}`;
+    currentTrackHash = requestHash;
+
     const container = document.getElementById('lyrics-container');
     container.innerHTML = '<br><span class="dim">Downloading data packet...</span>';
     
@@ -51,6 +54,7 @@ async function getLyrics(title, artist) {
     for (const query of uniqueQueries) {
         try {
             const lpData = await fetchLyricsPlusAPI(query.t, query.a);
+            if (currentTrackHash !== requestHash) return;
             if (lpData && lpData.length > 2) {
                 if (lpData.isSynced) {
                     currentLyricsData = lpData;
@@ -69,6 +73,7 @@ async function getLyrics(title, artist) {
     // Try Better Lyrics
     for (const query of uniqueQueries) {
         try {
+            if (currentTrackHash !== requestHash) return;
             const blData = await fetchBetterLyricsAPI(query.t, query.a);
             
             // Check if we got more than just the 0 and 9999 padding objects
@@ -87,6 +92,7 @@ async function getLyrics(title, artist) {
     // Try each query in sequence
     for (const query of uniqueQueries) {
         try {
+            if (currentTrackHash !== requestHash) return;
             const params = new URLSearchParams({
                 artist_name: query.a,
                 track_name: query.t
@@ -110,6 +116,7 @@ async function getLyrics(title, artist) {
 
     for (const query of uniqueQueries) {
         try {
+            if (currentTrackHash !== requestHash) return;
             // Search using just the title to cast a wide net
             const params = new URLSearchParams({ q: query.t });
             const response = await fetch(`https://lrclib.net/api/search?${params.toString()}`);
@@ -270,15 +277,14 @@ function syncLyrics(currentPositionSeconds) {
     }
 }
     
-
-// Removes "(feat. xxx)", "[ft. xxx]", "(with xxx)", or "- feat. xxx"
 function cleanTitle(title) {
-    let cleaned = title.replace(/\s*[\(\[](feat\.|ft\.|featuring|with)\s+[^)\]]+[\)\]]/gi, '');
+    if (!title) return ""; // Protect against undefined/null
+    let cleaned = String(title).replace(/\s*[\(\[](feat\.|ft\.|featuring|with)\s+[^)\]]+[\)\]]/gi, '');
     cleaned = cleaned.replace(/\s*-\s+(feat\.|ft\.|featuring|with).*$/gi, '');
     return cleaned.trim();
 }
 
-// Keeps only the primary artist by splitting at common delimiters
 function cleanArtist(artist) {
-    return artist.split(/,|&|\+| and | ft\.? | feat\.? | featuring /i)[0].trim();
+    if (!artist) return ""; // Protect against undefined/null
+    return String(artist).split(/,|&|\+| and | ft\.? | feat\.? | featuring /i)[0].trim();
 }
