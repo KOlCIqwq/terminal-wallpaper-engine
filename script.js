@@ -1132,9 +1132,9 @@ function renderVolumeBar(percent) {
     for (let i = 0; i < totalLength; i++) {
         // Determine the color zone for this specific character slot
         let colorClass = "green";
-        if (i >= 5 && i < 10) {
+        if (i >= 7 && i < 13) {
             colorClass = "yellow";
-        } else if (i >= 16) {
+        } else if (i >= 13) {
             colorClass = "red";
         }
 
