@@ -46,6 +46,7 @@ let charEmpty = '.';
 
 let isDraggingVolume = false;
 let volumeThrottle = null;
+let lastVolumeSetTime = 0;
 
 const fallbackData = {
     os: "Detecting OS...",
@@ -243,7 +244,10 @@ function fetchSystemSpecs() {
                 updateHardwareUI(data, true);
 
                 if (data.sys_volume !== undefined && !isDraggingVolume) {
-                    renderVolumeBar(data.sys_volume);
+                    // ignore server if the volume is updated less than 1.5s ago
+                    if (Date.now() - lastVolumeSetTime > 1500) {
+                        renderVolumeBar(data.sys_volume);
+                    }
                 }
 
                 const trackSignature = `${data.media_title}-${data.media_artist}`;
@@ -1118,18 +1122,37 @@ const volumeLabel = document.getElementById('sys-volume-label');
 function renderVolumeBar(percent) {
     if (!volumeControlBar) return;
     
-    const totalLength = 20; // Number of characters in the bar
+    const totalLength = 30;
     const clampedPercent = Math.max(0, Math.min(100, percent));
     const filledCount = Math.round((clampedPercent / 100) * totalLength);
-    const emptyCount = totalLength - filledCount;
     
-    const filledStr = charFilled.repeat(filledCount);
-    const emptyStr = charEmpty.repeat(emptyCount);
+    // Start with the opening bracket
+    let barHTML = "[";
     
-    volumeControlBar.innerHTML = `[${filledStr}<span class="gray">${emptyStr}</span>]`;
+    for (let i = 0; i < totalLength; i++) {
+        // Determine the color zone for this specific character slot
+        let colorClass = "green";
+        if (i >= 10 && i < 16) {
+            colorClass = "yellow";
+        } else if (i >= 16) {
+            colorClass = "red";
+        }
+
+        // Add either a colored filled bar, or a standard gray empty dot
+        if (i < filledCount) {
+            barHTML += `<span class="${colorClass}">${charFilled}</span>`;
+        } else {
+            barHTML += `<span class="gray">${charEmpty}</span>`;
+        }
+    }
+    
+    // Close the bracket (default text color)
+    barHTML += "]";
+    
+    volumeControlBar.innerHTML = barHTML;
     
     if (volumeLabel) {
-        // padStart ensures " 5%" and "100%" take up the same space so the UI doesn't wiggle
+        // Update the percentage text
         volumeLabel.textContent = Math.round(clampedPercent).toString().padStart(3, ' ') + '%';
     }
 }
@@ -1147,10 +1170,9 @@ if (volumeControlBar) {
         
         // Optimistically update the UI instantly
         renderVolumeBar(newVol);
+
+        lastVolumeSetTime = Date.now();
         
-        // THROTTLE THE FETCH:
-        // Mousemove events fire hundreds of times a second. 
-        // We throttle requests to 10fps (100ms) so we don't crash the Python server.
         if (!volumeThrottle) {
             volumeThrottle = setTimeout(() => {
                 fetch(`http://127.0.0.1:25555/media/volume?val=${newVol}`)
@@ -1166,7 +1188,7 @@ if (volumeControlBar) {
         updateVolumeFromMouse(e);
     });
 
-    // Attach to window so if the user drags their mouse OUTSIDE the widget, it still works
+    // drag
     window.addEventListener('mousemove', (e) => {
         if (isDraggingVolume) {
             updateVolumeFromMouse(e);

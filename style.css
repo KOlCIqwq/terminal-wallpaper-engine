@@ -10,6 +10,7 @@
     --text-yellow: #e5c07b;
     --text-blue: #3b8eea;
     --text-green: #4af626;
+    --text-red: #e06c75;
 
     --text-header: #888888;
     --text-divider: #555555;
@@ -122,6 +123,8 @@ body {
 .white { color: var(--text-white); }
 .gray { color: var(--text-gray); }
 .yellow { color: var(--text-yellow); }
+.green { color: var(--text-green); }
+.red { color: var(--text-red); }
 .header-text { color: var(--text-header); font-weight: bold; }
 .divider-text { color: var(--text-divider); }
 
@@ -294,7 +297,6 @@ body {
     letter-spacing: 1.5px; /* Gives the text a bit of width for easier clicking */
     cursor: pointer;
     user-select: none; /* Prevents ugly text highlighting while dragging */
-    flex-grow: 1;
 }
 
 #sys-volume-label {
