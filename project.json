@@ -273,6 +273,12 @@
                 "type": "bool",
                 "value": true
             },
+            "show_logs": {
+                "order": 408,
+                "text": "Show Logs",
+                "type": "bool",
+                "value": true
+            },
             "clocks_group": {
                 "order": 450,
                 "text": "World Clocks",

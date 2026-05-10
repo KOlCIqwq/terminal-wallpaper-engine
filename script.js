@@ -539,6 +539,7 @@ window.myPropertyHandlers.push(function(properties) {
     toggleWidget(properties.show_ascii, 'widget-ascii');
     toggleWidget(properties.show_lyrics, 'widget-lyrics');
     toggleWidget(properties.show_map, 'widget-map');
+    toggleWidget(properties.show_logs, 'widget-logs');
 
     // bg
     if (properties.bg_type !== undefined) {
