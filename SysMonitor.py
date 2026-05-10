@@ -17,7 +17,6 @@ import urllib.request
 import urllib.parse
 from urllib.parse import urlparse, parse_qs
 import winreg
-# volume
 import pythoncom
 from pycaw.pycaw import AudioUtilities
 
@@ -32,7 +31,6 @@ if sys.stdout is None:
 if sys.stderr is None:
     sys.stderr = open(os.devnull, 'w')
 
-# A dict to keep the resources data
 system_state = {
     "os": "Loading...",
     "cpu_name": "Loading...",
@@ -50,12 +48,12 @@ system_state = {
     "media_status": "Closed",
     "media_position": 0,
     "media_duration": 0,
-    "sys_volume": 0
+    "sys_volume": 0,
+    "sys_log": "Initializing monitor..."
 }
 
 PORT = 25555
 
-# Cache the media manager globally
 media_manager = None
 seek_target = None
 seek_time = 0
@@ -130,9 +128,11 @@ async def get_media_info():
             else:
                 position = 0
                 duration = 0
+                snapshot_age = 0
         except:
             position = 0
             duration = 0
+            snapshot_age = 0
 
         return {
             "media_title": cached_title,
@@ -166,7 +166,6 @@ def media_command(command):
     ctypes.windll.user32.keybd_event(VK_CODE, 0, 2, 0) 
 
 def keyboard_jolt():
-    """Rapidly double-taps the Play/Pause media key via hardware interrupt"""
     media_command("playpause")
     time.sleep(0.03)
     media_command("playpause")
@@ -207,6 +206,7 @@ def get_static():
     system_state['gpu_name'] = gpu_info
     system_state['disk_total'] = disk_total
     system_state['ram_total'] = ram_info
+    system_state['sys_log'] = "Hardware specs loaded"
 
 def monitor():
     global system_state, seek_target, seek_time, media_manager, fallback_duration 
@@ -229,13 +229,10 @@ def monitor():
     
     psutil.cpu_percent(interval=None)
     
-    tick = 0
-    last_tick_time = time.time()
-    
     pythoncom.CoInitialize() 
     try:
         devices = AudioUtilities.GetSpeakers()
-        volume_ctrl = devices.EndpointVolume
+        volume_ctrl = devices.EndpointVolume #type:ignore
     except Exception as e:
         volume_ctrl = None
 
@@ -251,11 +248,9 @@ def monitor():
         
         if tick % 4 == 0:
             system_state['cpu_percent'] = psutil.cpu_percent(interval=None)
-            # get current volume
             if volume_ctrl:
                 try:
-                    vol_scalar = volume_ctrl.GetMasterVolumeLevelScalar() # type: ignore
-                    #print(round(vol_scalar * 100))
+                    vol_scalar = volume_ctrl.GetMasterVolumeLevelScalar() 
                     system_state['sys_volume'] = round(vol_scalar * 100)
                 except:
                     pass
@@ -275,23 +270,12 @@ def monitor():
             if current_duration == 0 or current_duration == last_track_duration:
                 media_manager = None 
                 media_data['media_duration'] = fallback_duration 
-                
                 if status == 'Playing':
                     elapsed_hunt = current_time - hunt_start_time
-                    
-                    # KEYBOARD JOLT
-                    """ if elapsed_hunt > 0.1 and not keyboard_jolt_fired:
-                        keyboard_jolt()
-                        keyboard_jolt_fired = True """
-                        
-                    """ # HARD SEEK JOLT
-                    elif elapsed_hunt > 3.5 and not hard_seek_fired and fallback_duration == 0:
-                        seek_target = cur_pos + 0.001 
-                        seek_time = current_time
-                        hard_seek_fired = True """
             else:
                 hunting_for_duration = False
                 last_track_duration = current_duration 
+                system_state['sys_log'] = "Duration fetched via SMTC"
         
         if seek_target is not None:
             cur_pos = seek_target
@@ -308,31 +292,19 @@ def monitor():
             
         ignore_smtc = (current_time - seek_time < 1.0)
 
-        # Detect the exact moment Windows wakes up and pushes a state update
         if abs(prev_skip_position - skipped_position) > 0.0000001:
-            
-            # Compare our perfectly ticking internal counter to the delayed Windows snapshot
             gap = abs(cur_pos - skipped_position)
-            
-            # Echo check
             is_echo = (gap < 6.0) and (current_time - seek_time < 15.0)
             
             if not ignore_smtc and not is_echo: 
                 if title == last_track_title:
                     if reset == False:
-                        # media player skip 
                         catch_up_delay = snapshot_age if status == 'Playing' else 0.0
-                        
-                        # Sanity check
                         if catch_up_delay < 0 or catch_up_delay > 15.0:
                             catch_up_delay = 1.5 
-                            
-                        # catch up with the current duration
                         cur_pos = skipped_position + catch_up_delay
                     else:
                         reset = False
-                        
-            # Save the new Windows snapshot to detect the next jump
             prev_skip_position = skipped_position
             
         if title != last_track_title:
@@ -342,8 +314,6 @@ def monitor():
             
             hunting_for_duration = True 
             hunt_start_time = current_time 
-            """ keyboard_jolt_fired = False
-            hard_seek_fired = False """
             media_manager = None 
             media_data['media_duration'] = 0 
             
@@ -387,8 +357,6 @@ def monitor():
         if tick > 1000: 
             tick = 0
             
-        
-            
 async def media_seek(position_seconds):
     global media_manager
     if media_manager is None:
@@ -401,13 +369,14 @@ async def media_seek(position_seconds):
             ticks = int(position_seconds * 10000000)
             await current_session.try_change_playback_position_async(ticks)
         except Exception as e:
-            print(f"Seek failed: {e}")
+            pass
         
 class RequestHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
     def do_GET(self):
+        global system_state
         parsed_path = urlparse(self.path)
         
         if parsed_path.path == '/specs':
@@ -422,18 +391,21 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             media_command("playpause")
+            system_state['sys_log'] = "Command: Play/Pause"
             
         elif parsed_path.path == '/media/next':
             self.send_response(200)
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             media_command("next")
+            system_state['sys_log'] = "Command: Next Track"
             
         elif parsed_path.path == '/media/prev':
             self.send_response(200)
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             media_command("prev")
+            system_state['sys_log'] = "Command: Prev Track"
             
         elif parsed_path.path == '/media/seek':
             self.send_response(200)
@@ -450,6 +422,7 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                     seek_loop = asyncio.new_event_loop()
                     seek_loop.run_until_complete(media_seek(pos_sec))
                     seek_loop.close()
+                    system_state['sys_log'] = f"UI seek to {round(pos_sec)}s"
                 except ValueError:
                     pass
         elif parsed_path.path == '/media/volume':
@@ -464,12 +437,11 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                     vol_val = max(0.0, min(1.0, vol_val))
                     
                     pythoncom.CoInitialize()
-                    
-                    # Fetch the speakers and set the volume instantly
                     devices = AudioUtilities.GetSpeakers()
-                    devices.EndpointVolume.SetMasterVolumeLevelScalar(vol_val, None) # type: ignore
+                    devices.EndpointVolume.SetMasterVolumeLevelScalar(vol_val, None) #type:ignore
+                    system_state['sys_log'] = f"Sys Vol override: {round(vol_val * 100)}%"
                 except Exception as e:
-                    print(f"Volume set error: {e}")
+                    pass
         else:
             self.send_response(404)
             self.end_headers()
@@ -505,7 +477,7 @@ def add_to_startup():
         winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, exe_path)
         winreg.CloseKey(key)
     except Exception as e:
-        print(f"Failed to add to startup: {e}")
+        pass
 
 if __name__ == '__main__':
     add_to_startup()

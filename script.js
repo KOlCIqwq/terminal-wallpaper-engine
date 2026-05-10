@@ -62,6 +62,26 @@ const fallbackData = {
 
 let customLogText = "";
 
+let logQueue = [];
+let lastSysLogStr = "";
+
+function appendLog(msg) {
+    logQueue.push(msg);
+    if (logQueue.length > 10) {
+        logQueue.shift();
+    }
+    
+    const listContainer = document.getElementById("log-list");
+    if (listContainer) {
+        listContainer.innerHTML = logQueue.map(m => `<div>> ${m}</div>`).join('');
+    }
+    
+    const sysLogText = document.getElementById("log_text");
+    if (sysLogText && !overrides.log) {
+        sysLogText.textContent = msg;
+    }
+}
+
 function updateHardwareUI(data, isLive) {
     if (data.os && !overrides.os) document.getElementById('os').textContent = data.os;
     if (data.cpu_name && !overrides.cpu) document.getElementById('cpu').textContent = data.cpu_name;
@@ -248,6 +268,11 @@ function fetchSystemSpecs() {
                     if (Date.now() - lastVolumeSetTime > 1500) {
                         renderVolumeBar(data.sys_volume);
                     }
+                }
+
+                if (data.sys_log && data.sys_log !== lastSysLogStr) {
+                    lastSysLogStr = data.sys_log;
+                    appendLog(`[MONITOR] ${data.sys_log}`);
                 }
 
                 const trackSignature = `${data.media_title}-${data.media_artist}`;

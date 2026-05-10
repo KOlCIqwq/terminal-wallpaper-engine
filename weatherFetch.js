@@ -178,6 +178,7 @@ function getWeather(lon,lat){
         hourly: "temperature_2m,precipitation",
         timezone: "auto"
     })
+    appendLog(`[WEATHER] Fetching coords: ${parseFloat(lat).toFixed(2)}, ${parseFloat(lon).toFixed(2)}`);
     fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`)
     .then(response =>{
         if (!response.ok) throw new Error("Cannot fetch weather");
@@ -248,7 +249,7 @@ function getWeather(lon,lat){
 function updateLocationAndWeather(cityName) {
     if (!cityName || cityName.trim() === "") return;
     const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=1&language=en&format=json`;
-
+    appendLog(`[WEATHER] Geocoding city: ${cityName}`);
     fetch(url)
         .then(response => {
             if (!response.ok) throw new Error("Geocoding API error");

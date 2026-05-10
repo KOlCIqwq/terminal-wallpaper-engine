@@ -79,6 +79,7 @@ window.wallpaperRegisterMediaThumbnailListener((event) => {
 });
 
 function generateAscii(base64Image) {
+    appendLog(`[IMAGE] Generating ASCII image`);
     const asciiImg = new Image();
 
     asciiImg.onload = () => {
@@ -133,6 +134,7 @@ function generateAscii(base64Image) {
 }
 
 function extractAndApplyColors(base64Image) {
+    appendLog(`[IMAGE] Extracting colors`);
     const img = new Image();
 
     img.onload = () => {

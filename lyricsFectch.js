@@ -28,6 +28,7 @@ function parseLRC(lrcString) {
 }
 
 async function getLyrics(title, artist, duration = -1) {
+    appendLog(`[LYRICS] Requesting sync for: ${cleanTitle(title)}`);
     const requestHash = `${title}-${artist}`;
     currentTrackHash = requestHash;
 
@@ -53,12 +54,14 @@ async function getLyrics(title, artist, duration = -1) {
     // Try Lyrics Plus
     for (const query of uniqueQueries) {
         try {
+            appendLog(`[LYRICS] Trying Lyrics Plus`);
             const lpData = await fetchLyricsPlusAPI(query.t, query.a);
             if (currentTrackHash !== requestHash) return;
             if (lpData && lpData.length > 2) {
                 if (lpData.isSynced) {
                     currentLyricsData = lpData;
                     currentLyricsData.provider = "Lyrics Plus";
+                    appendLog(`[LYRICS] Success via ${currentLyricsData.provider}`);
                     renderLyricsToDom();
                     return;
                 } else if (!savedUnsyncedLyrics) {
@@ -75,6 +78,7 @@ async function getLyrics(title, artist, duration = -1) {
     // Try Better Lyrics
     for (const query of uniqueQueries) {
         try {
+            appendLog(`[LYRICS] Trying Better Lyrics`);
             const blData = await fetchBetterLyricsAPI(query.t, query.a, duration);
 
             if (currentTrackHash !== requestHash) return;
@@ -82,7 +86,8 @@ async function getLyrics(title, artist, duration = -1) {
             if (blData && blData.length > 2) {
                 if (blData.isSynced) {
                     currentLyricsData = blData;
-                    currentLyricsData.provider = "Better Lyrics"; 
+                    currentLyricsData.provider = "Better Lyrics";
+                    appendLog(`[LYRICS] Success via ${currentLyricsData.provider}`);
                     renderLyricsToDom();
                     return;
                 } else if (!savedUnsyncedLyrics) {
@@ -101,6 +106,7 @@ async function getLyrics(title, artist, duration = -1) {
     // Try each query in sequence
     for (const query of uniqueQueries) {
         try {
+            appendLog(`[LYRICS] Trying Lrclib`);
             if (currentTrackHash !== requestHash) return;
             const params = new URLSearchParams({
                 artist_name: query.a,
@@ -113,9 +119,16 @@ async function getLyrics(title, artist, duration = -1) {
                 const data = await response.json();
                 if (data.syncedLyrics) {
                     currentLyricsData = parseLRC(data.syncedLyrics);
-                    currentLyricsData.provider = "lrclib";
+                    currentLyricsData.provider = "Lrclib";
+                    appendLog(`[LYRICS] Success via ${currentLyricsData.provider}`);
                     renderLyricsToDom();
                     return; // Exit when found 
+                }
+                else if (data.plainLyrics && !savedUnsyncedLyrics) {
+                    console.log(`[Lrclib] Found plain lyrics via exact match. Saving...`);
+                    savedUnsyncedLyrics = data.plainLyrics.split('\n').map(line => ({ time: 0, text: line }));
+                    savedUnsyncedLyrics.isSynced = false;
+                    savedUnsyncedLyrics.sourceName = "Lrclib";
                 }
             }
         } catch (err) {
@@ -126,6 +139,7 @@ async function getLyrics(title, artist, duration = -1) {
 
     for (const query of uniqueQueries) {
         try {
+            appendLog(`[LYRICS] Trying LrcLib Search`);
             if (currentTrackHash !== requestHash) return;
             // Search using just the title to cast a wide net
             const params = new URLSearchParams({ q: query.t });
@@ -146,7 +160,8 @@ async function getLyrics(title, artist, duration = -1) {
                 if (syncedMatch) {
                     console.log(`[lrclib] Found synced lyrics via search API for "${query.t}"`);
                     currentLyricsData = parseLRC(syncedMatch.syncedLyrics);
-                    currentLyricsData.provider = "lrclib";
+                    currentLyricsData.provider = "Lrclib";
+                    appendLog(`[LYRICS] Success via ${currentLyricsData.provider}`);
                     renderLyricsToDom();
                     return;
                 }
@@ -172,19 +187,28 @@ async function getLyrics(title, artist, duration = -1) {
     console.log("[KuGou] Attempting fallback...");
     // Try KuGou
     for (const query of uniqueQueries) {
+        appendLog(`[LYRICS] Trying KuGou`);
         try {
             if (currentTrackHash !== requestHash) return;
             const kgData = await fetchKugouLyricsAPI(query.t, query.a, duration);
             
             if (kgData) {
-                // KuGou returns an LRC string, use your parser!
+                if (kgData.includes("纯音乐") || kgData.includes("请欣赏")) {
+                    console.log(`[KuGou] Rejected instrumental placeholder.`);
+                    continue; // Skip and let it fall back to savedUnsyncedLyrics
+                }
+
                 const parsedData = parseLRC(kgData);
-                if (parsedData && parsedData.length > 2) {
+                
+                if (parsedData && parsedData.length > 4) {
                     console.log(`[KuGou] Found synced lyrics for "${query.t}"`);
                     currentLyricsData = parsedData;
                     currentLyricsData.provider = "KuGou";
+                    appendLog(`[LYRICS] Success via ${currentLyricsData.provider}`);
                     renderLyricsToDom();
                     return; 
+                } else {
+                    console.log(`[KuGou] Rejected: Not enough lines.`);
                 }
             }
         } catch (err) {
@@ -197,12 +221,14 @@ async function getLyrics(title, artist, duration = -1) {
         console.log("No synced lyrics found across any provider. Deploying plain text fallback.");
         currentLyricsData = savedUnsyncedLyrics;
         currentLyricsData.provider = `${savedUnsyncedLyrics.sourceName} (Unsynced)`;
+        appendLog(`[LYRICS] Success via ${currentLyricsData.provider}`);
         renderLyricsToDom();
         return; 
     }
 
     // If the loop finishes without returning, all fallbacks failed.
-    container.innerHTML = '<br><span class="dim">Target offline. No sync data found.</span>';
+    container.innerHTML = '<br><span class="dim">No sync data found.</span>';
+    appendLog(`[LYRICS] Failed to fetch lyrics`);
     currentLyricsData = [];
 }
 
