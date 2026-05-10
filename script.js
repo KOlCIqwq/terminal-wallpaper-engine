@@ -258,7 +258,7 @@ function fetchSystemSpecs() {
                     optimisticPosition = 0;
                     lastSeekTime = 0;
                     currentLyricsData = [];
-                    getLyrics(data.media_title, data.media_artist);
+                    getLyrics(data.media_title, data.media_artist, data.media_duration);
                 }
 
                 let isSeeking = (Date.now() - lastSeekTime < 3000);
@@ -706,7 +706,7 @@ if (window.wallpaperRegisterMediaPropertiesListener) {
             document.getElementById('duration').textContent = "[ --:-- / --:-- ]";
             updatePlayingBar(0, 0);
             currentLyricsData = [];
-            if (typeof getLyrics === 'function') getLyrics(event.title, event.artist);
+            if (typeof getLyrics === 'function') getLyrics(event.title, event.artist, event.duration);
         }
     });
 }
@@ -1132,7 +1132,7 @@ function renderVolumeBar(percent) {
     for (let i = 0; i < totalLength; i++) {
         // Determine the color zone for this specific character slot
         let colorClass = "green";
-        if (i >= 10 && i < 16) {
+        if (i >= 5 && i < 10) {
             colorClass = "yellow";
         } else if (i >= 16) {
             colorClass = "red";

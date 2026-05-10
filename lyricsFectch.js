@@ -27,7 +27,7 @@ function parseLRC(lrcString) {
     return result;
 }
 
-async function getLyrics(title, artist) {
+async function getLyrics(title, artist, duration = -1) {
     const requestHash = `${title}-${artist}`;
     currentTrackHash = requestHash;
 
@@ -58,11 +58,13 @@ async function getLyrics(title, artist) {
             if (lpData && lpData.length > 2) {
                 if (lpData.isSynced) {
                     currentLyricsData = lpData;
+                    currentLyricsData.provider = "Lyrics Plus";
                     renderLyricsToDom();
                     return;
                 } else if (!savedUnsyncedLyrics) {
                     console.log(`[Lyrics Plus] Found unsynced text for "${query.t}". Saving just in case...`);
                     savedUnsyncedLyrics = lpData; // Save it
+                    savedUnsyncedLyrics.sourceName = "Lyrics Plus";
                 }
             }
         } catch (err) {
@@ -79,6 +81,7 @@ async function getLyrics(title, artist) {
             // Check if we got more than just the 0 and 9999 padding objects
             if (blData && blData.length > 2) {
                 currentLyricsData = blData;
+                currentLyricsData.provider = "Better Lyrics";
                 renderLyricsToDom();
                 return; // Exit on success
             }
@@ -104,6 +107,7 @@ async function getLyrics(title, artist) {
                 const data = await response.json();
                 if (data.syncedLyrics) {
                     currentLyricsData = parseLRC(data.syncedLyrics);
+                    currentLyricsData.provider = "lrclib";
                     renderLyricsToDom();
                     return; // Exit when found 
                 }
@@ -136,6 +140,7 @@ async function getLyrics(title, artist) {
                 if (syncedMatch) {
                     console.log(`[lrclib] Found synced lyrics via search API for "${query.t}"`);
                     currentLyricsData = parseLRC(syncedMatch.syncedLyrics);
+                    currentLyricsData.provider = "lrclib";
                     renderLyricsToDom();
                     return;
                 }
@@ -149,6 +154,7 @@ async function getLyrics(title, artist) {
                         // Structure it so it mimics the other unsynced payloads
                         savedUnsyncedLyrics = unsyncedMatch.plainLyrics.split('\n').map(line => ({ time: 0, text: line }));
                         savedUnsyncedLyrics.isSynced = false;
+                        savedUnsyncedLyrics.sourceName = "lrclib";
                     }
                 }
             }
@@ -157,10 +163,34 @@ async function getLyrics(title, artist) {
         }
     }
 
+    console.log("[KuGou] Attempting fallback...");
+    // Try KuGou
+    for (const query of uniqueQueries) {
+        try {
+            if (currentTrackHash !== requestHash) return;
+            const kgData = await fetchKugouLyricsAPI(query.t, query.a, duration);
+            
+            if (kgData) {
+                // KuGou returns an LRC string, use your parser!
+                const parsedData = parseLRC(kgData);
+                if (parsedData && parsedData.length > 2) {
+                    console.log(`[KuGou] Found synced lyrics for "${query.t}"`);
+                    currentLyricsData = parsedData;
+                    currentLyricsData.provider = "KuGou";
+                    renderLyricsToDom();
+                    return; 
+                }
+            }
+        } catch (err) {
+            console.error(`[KuGou] Error for "${query.t}":`, err.message || err);
+        }
+    }
+
     // got cached unsynced
     if (savedUnsyncedLyrics) {
         console.log("No synced lyrics found across any provider. Deploying plain text fallback.");
         currentLyricsData = savedUnsyncedLyrics;
+        currentLyricsData.provider = `${savedUnsyncedLyrics.sourceName} (Unsynced)`;
         renderLyricsToDom();
         return; 
     }
@@ -174,6 +204,14 @@ function renderLyricsToDom() {
     const container = document.getElementById('lyrics-container');
     const scrollControls = document.getElementById('lyrics-scroll-controls');
     container.innerHTML = ''; // Clear
+
+    if (providerLabel) {
+        if (currentLyricsData && currentLyricsData.provider) {
+            providerLabel.textContent = `[ SRC: ${currentLyricsData.provider} ]`;
+        } else {
+            providerLabel.textContent = '';
+        }
+    }
 
     const isUnsynced = currentLyricsData.isSynced === false;
 
