@@ -288,7 +288,7 @@ function syncLyrics(currentPositionSeconds) {
     // empty or unsynced
     if (!currentLyricsData.length || currentLyricsData.isSynced === false) return;
     // smooth out
-    const searchTime = currentPositionSeconds + 0.2; 
+    const searchTime = currentPositionSeconds + 0.05; 
     let activeLineIndex = -1;
 
     // Find the current active line

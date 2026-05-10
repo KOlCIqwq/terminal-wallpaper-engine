@@ -240,11 +240,13 @@ body {
 
 .lyric-word {
     transition: color 0.1s, text-shadow 0.1s;
+    opacity: 0.4;
 }
 
 .lyric-word.sung {
     color: var(--text-accent);
     text-shadow: 0 0 5px var(--text-accent);
+    opacity: 1;
 }
 
 #bg-layer-image, #bg-layer-video, #bg-layer-overlay {
