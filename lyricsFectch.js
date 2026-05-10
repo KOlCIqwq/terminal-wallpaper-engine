@@ -75,18 +75,24 @@ async function getLyrics(title, artist, duration = -1) {
     // Try Better Lyrics
     for (const query of uniqueQueries) {
         try {
+            const blData = await fetchBetterLyricsAPI(query.t, query.a, duration);
+
             if (currentTrackHash !== requestHash) return;
-            const blData = await fetchBetterLyricsAPI(query.t, query.a);
-            
-            // Check if we got more than just the 0 and 9999 padding objects
+
             if (blData && blData.length > 2) {
-                currentLyricsData = blData;
-                currentLyricsData.provider = "Better Lyrics";
-                renderLyricsToDom();
-                return; // Exit on success
+                if (blData.isSynced) {
+                    currentLyricsData = blData;
+                    currentLyricsData.provider = "Better Lyrics"; 
+                    renderLyricsToDom();
+                    return;
+                } else if (!savedUnsyncedLyrics) {
+                    console.log(`[Better Lyrics] Found unsynced text for "${query.t}". Saving...`);
+                    savedUnsyncedLyrics = blData; 
+                    savedUnsyncedLyrics.sourceName = "Better Lyrics"; 
+                }
             }
         } catch (err) {
-            console.error(`[Better Lyrics] Error for "${query.t}":`, err.message || err);        
+            console.log(`[Better Lyrics] Bypassed for "${query.t}":`, err.message);
         }
     }
 
@@ -203,11 +209,12 @@ async function getLyrics(title, artist, duration = -1) {
 function renderLyricsToDom() {
     const container = document.getElementById('lyrics-container');
     const scrollControls = document.getElementById('lyrics-scroll-controls');
+    const providerLabel = document.getElementById('lyrics-provider');
     container.innerHTML = ''; // Clear
 
     if (providerLabel) {
         if (currentLyricsData && currentLyricsData.provider) {
-            providerLabel.textContent = `[ SRC: ${currentLyricsData.provider} ]`;
+            providerLabel.textContent = `[ SOURCE: ${currentLyricsData.provider} ]`;
         } else {
             providerLabel.textContent = '';
         }

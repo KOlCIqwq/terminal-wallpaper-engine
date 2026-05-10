@@ -23,12 +23,13 @@ function parseTTML(ttmlString) {
     const doc = parser.parseFromString(ttmlString, 'text/xml');
     const result = [];
 
-    // Add your UI start padding
     result.push({ time: 0, text: ' ' });
 
     doc.querySelectorAll('p').forEach(p => {
-        let fullLineText = "";
-        const words = []; // Syllable data (saved for future upgrades)
+        const fullLineText = p.textContent || "";
+        const words = []; 
+        
+        let lastWordRef = null; // Track the last word so we can attach spaces to it
 
         // Recursively collect spans, tracking text and syllables
         function collectSpans(element, isBackground = false) {
@@ -38,17 +39,22 @@ function parseTTML(ttmlString) {
                     const begin = node.getAttribute('begin');
 
                     if (begin) {
-                        // Crucial: preserve the raw text content (including trailing spaces)
-                        fullLineText += node.textContent; 
-                        
-                        words.push({
-                            text: node.textContent,
+                        const newWord = {
+                            text: node.textContent, // e.g., "Me"
                             time: parseTTMLTimeToSeconds(begin),
                             isBackground: isBg
-                        });
+                        };
+                        words.push(newWord);
+                        lastWordRef = newWord; // Update the reference
                     } else {
                         // Wrapper span, recurse
                         collectSpans(node, isBg);
+                    }
+                } 
+                else if (node.nodeType === Node.TEXT_NODE) {
+                    // Capture the spaces/punctuation between spans and glue them to the previous word
+                    if (lastWordRef) {
+                        lastWordRef.text += node.textContent; 
                     }
                 }
             });
@@ -62,8 +68,8 @@ function parseTTML(ttmlString) {
         if (lineBeginTime && fullLineText.trim() !== "") {
             result.push({
                 time: parseTTMLTimeToSeconds(lineBeginTime),
-                text: fullLineText, 
-                words: words // Store syllable data silently in the background
+                text: fullLineText.trim(), // Clean start/end spaces, but keep internal spaces
+                words: words 
             });
         }
     });
@@ -73,11 +79,16 @@ function parseTTML(ttmlString) {
     return result;
 }
 
-async function fetchBetterLyricsAPI(title, artist) {
+async function fetchBetterLyricsAPI(title, artist, durationSeconds = -1) {
     const params = new URLSearchParams({
         s: title,
         a: artist
     });
+
+    if (durationSeconds !== -1 || durationSeconds != 0) {
+        params.append("d", Math.floor(durationSeconds));
+    }
+
     const url = `https://lyrics-api.boidu.dev/getLyrics?${params.toString()}`;
     console.log(`[Better Lyrics] Fetching: ${url}`);
     const response = await fetch(url);
@@ -90,13 +101,15 @@ async function fetchBetterLyricsAPI(title, artist) {
 
     // Check for Primary TTML format
     if (data.ttml) {
-        return parseTTML(data.ttml);
+        const result = parseTTML(data.ttml);
+        result.isSynced = true; // explicitly tag it as synced
+        return result;
     } 
     // Check for Fallback Kugou format (Standard LRC)
     else if (data.lyrics && typeof parseLRC === 'function') {
-        // If the API serves Kugou, it's normal LRC format, 
-        // so we reuse your existing parseLRC function from the main file.
-        return parseLRC(data.lyrics);
+        const result = parseLRC(data.lyrics);
+        result.isSynced = true;
+        return result;
     }
 
     throw new Error("No valid sync format returned from Better Lyrics");
