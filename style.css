@@ -282,3 +282,22 @@ body {
 .lyrics-content.unsynced-view::-webkit-scrollbar {
     display: none; /* Webkit / Wallpaper Engine */
 }
+
+.volume-row {
+    display: flex;
+    align-items: center;
+    margin-top: 8px;
+}
+
+.volume-line {
+    font-family: 'Consolas', 'Courier New', monospace;
+    letter-spacing: 1.5px; /* Gives the text a bit of width for easier clicking */
+    cursor: pointer;
+    user-select: none; /* Prevents ugly text highlighting while dragging */
+    flex-grow: 1;
+}
+
+#sys-volume-label {
+    width: 45px;
+    text-align: right;
+}

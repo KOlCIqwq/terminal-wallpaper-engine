@@ -44,6 +44,9 @@ let use24hFormat = false;
 let charFilled = '|';
 let charEmpty = '.';
 
+let isDraggingVolume = false;
+let volumeThrottle = null;
+
 const fallbackData = {
     os: "Detecting OS...",
     cpu_name: "Loading CPU...",
@@ -238,6 +241,10 @@ function fetchSystemSpecs() {
                 }
 
                 updateHardwareUI(data, true);
+
+                if (data.sys_volume !== undefined && !isDraggingVolume) {
+                    renderVolumeBar(data.sys_volume);
+                }
 
                 const trackSignature = `${data.media_title}-${data.media_artist}`;
                 
@@ -1101,6 +1108,74 @@ if (btnLyricUp && btnLyricDown) {
         const container = document.getElementById('lyrics-container');
         if (container) {
             container.scrollBy({ top: scrollJump, behavior: 'smooth' });
+        }
+    });
+}
+
+const volumeControlBar = document.getElementById('volume-control-bar');
+const volumeLabel = document.getElementById('sys-volume-label');
+
+function renderVolumeBar(percent) {
+    if (!volumeControlBar) return;
+    
+    const totalLength = 20; // Number of characters in the bar
+    const clampedPercent = Math.max(0, Math.min(100, percent));
+    const filledCount = Math.round((clampedPercent / 100) * totalLength);
+    const emptyCount = totalLength - filledCount;
+    
+    const filledStr = charFilled.repeat(filledCount);
+    const emptyStr = charEmpty.repeat(emptyCount);
+    
+    volumeControlBar.innerHTML = `[${filledStr}<span class="gray">${emptyStr}</span>]`;
+    
+    if (volumeLabel) {
+        // padStart ensures " 5%" and "100%" take up the same space so the UI doesn't wiggle
+        volumeLabel.textContent = Math.round(clampedPercent).toString().padStart(3, ' ') + '%';
+    }
+}
+
+if (volumeControlBar) {
+    const updateVolumeFromMouse = (e) => {
+        const rect = volumeControlBar.getBoundingClientRect();
+        let clickX = e.clientX - rect.left;
+        
+        let percent = clickX / rect.width;
+        if (percent < 0) percent = 0;
+        if (percent > 1) percent = 1;
+        
+        const newVol = Math.round(percent * 100);
+        
+        // Optimistically update the UI instantly
+        renderVolumeBar(newVol);
+        
+        // THROTTLE THE FETCH:
+        // Mousemove events fire hundreds of times a second. 
+        // We throttle requests to 10fps (100ms) so we don't crash the Python server.
+        if (!volumeThrottle) {
+            volumeThrottle = setTimeout(() => {
+                fetch(`http://127.0.0.1:25555/media/volume?val=${newVol}`)
+                    .catch(err => console.log("Volume set error", err));
+                volumeThrottle = null;
+            }, 100);
+        }
+    };
+
+    volumeControlBar.addEventListener('mousedown', (e) => {
+        e.stopPropagation(); // Prevents dragging the whole widget window
+        isDraggingVolume = true;
+        updateVolumeFromMouse(e);
+    });
+
+    // Attach to window so if the user drags their mouse OUTSIDE the widget, it still works
+    window.addEventListener('mousemove', (e) => {
+        if (isDraggingVolume) {
+            updateVolumeFromMouse(e);
+        }
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (isDraggingVolume) {
+            isDraggingVolume = false;
         }
     });
 }

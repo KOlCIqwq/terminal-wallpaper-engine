@@ -4,3 +4,5 @@ pywin32
 gpustat 
 winsdk 
 asyncio
+pycaw 
+comtypes
