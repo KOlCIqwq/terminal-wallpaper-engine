@@ -11,6 +11,7 @@
     --text-blue: #3b8eea;
     --text-green: #4af626;
     --text-red: #e06c75;
+    --text-accent: #4af626;
 
     --text-header: #888888;
     --text-divider: #555555;
@@ -234,7 +235,7 @@ body {
 
 .lyric-line.active::before {
     content: "> ";
-    color: var(--text-green);
+    color: var(--text-accent);
 }
 
 .lyric-word {
@@ -242,8 +243,8 @@ body {
 }
 
 .lyric-word.sung {
-    color: var(--text-green);
-    text-shadow: 0 0 5px var(--text-green);
+    color: var(--text-accent);
+    text-shadow: 0 0 5px var(--text-accent);
 }
 
 #bg-layer-image, #bg-layer-video, #bg-layer-overlay {

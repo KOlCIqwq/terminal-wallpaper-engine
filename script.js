@@ -817,17 +817,32 @@ function getAverage(array, start, end) {
 }
 
 function updateBar(elementId, value) {
-    const chars = 20; 
+    const totalLength = 30; 
     const clampedValue = Math.max(0, Math.min(value, 1));
-    const filledCount = Math.floor(clampedValue * chars);
-    const emptyCount = chars - filledCount;
+    const filledCount = Math.floor(clampedValue * totalLength);
     
-    const filledStr = charFilled.repeat(filledCount);
-    const emptyStr = charEmpty.repeat(emptyCount);
+    let barHTML = "";
     
-    const bar = `${filledStr}<span class="gray">${emptyStr}</span>`;
+    for (let i = 0; i < totalLength; i++) {
+        let colorClass = "green";
+        if (i >= 7 && i < 13) {
+            colorClass = "yellow";
+        } else if (i >= 13) {
+            colorClass = "red";
+        }
+
+        // Add either a colored filled bar, or a standard gray empty dot
+        if (i < filledCount) {
+            barHTML += `<span class="${colorClass}">${charFilled}</span>`;
+        } else {
+            barHTML += `<span class="gray">${charEmpty}</span>`;
+        }
+    }
     
-    document.getElementById(elementId).innerHTML = bar;
+    const el = document.getElementById(elementId);
+    if (el) {
+        el.innerHTML = barHTML;
+    }
 }
 
 function updatePercent(elementId, val){
