@@ -230,11 +230,6 @@ def monitor():
     psutil.cpu_percent(interval=None)
     
     pythoncom.CoInitialize() 
-    try:
-        devices = AudioUtilities.GetSpeakers()
-        volume_ctrl = devices.EndpointVolume #type:ignore
-    except Exception as e:
-        volume_ctrl = None
 
     tick = 0
     last_tick_time = time.time()
@@ -248,12 +243,12 @@ def monitor():
         
         if tick % 4 == 0:
             system_state['cpu_percent'] = psutil.cpu_percent(interval=None)
-            if volume_ctrl:
-                try:
-                    vol_scalar = volume_ctrl.GetMasterVolumeLevelScalar() 
-                    system_state['sys_volume'] = round(vol_scalar * 100)
-                except:
-                    pass
+            try:
+                devices = AudioUtilities.GetSpeakers()
+                vol_scalar = devices.EndpointVolume.GetMasterVolumeLevelScalar() #type:ignore
+                system_state['sys_volume'] = round(vol_scalar * 100)
+            except:
+                pass
         
         try:
             media_data = loop.run_until_complete(get_media_info())

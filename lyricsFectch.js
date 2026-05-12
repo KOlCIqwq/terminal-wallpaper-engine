@@ -227,7 +227,7 @@ async function getLyrics(title, artist, duration = -1) {
     }
 
     // If the loop finishes without returning, all fallbacks failed.
-    container.innerHTML = '<br><span class="dim">No sync data found.</span>';
+    /* container.innerHTML = '<br><span class="dim">No sync data found.</span>'; */
     appendLog(`[LYRICS] Failed to fetch lyrics`);
     currentLyricsData = [];
 }
