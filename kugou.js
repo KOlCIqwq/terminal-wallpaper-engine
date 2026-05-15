@@ -4,12 +4,16 @@ const KUGOU_DURATION_TOLERANCE = 8; // seconds
 
 function normalizeKugouText(text) {
     if (!text) return "";
-    return text.replace(/\(.*?\)/g, "").replace(/（.*?）/g, "")
-               .replace(/「.*?」/g, "").replace(/『.*?』/g, "")
-               .replace(/<.*?>/g, "").replace(/《.*?》/g, "")
-               .replace(/〈.*?〉/g, "").replace(/＜.*?＞/g, "")
-               .replace(/, /g, "、").replace(/ & /g, "、")
-               .replace(/\./g, "").replace(/和/g, "、");
+    
+    //let unifiedText = text.replace(/\s*[\(\[]/g, " - ").replace(/[\)\]]/g, "");
+
+    return text.replace(/, /g, "、")
+               .replace(/ & /g, "、")
+               .replace(/ and /g, "、")
+               .replace(/\./g, "")
+               .replace(/和/g, "、")
+               .replace(/\s+/g, ' ') // Collapse any accidental double spaces
+               .trim();
 }
 
 function decodeBase64UTF8(str) {
@@ -41,10 +45,11 @@ async function fetchKugouLyricsAPI(title, artist, durationSeconds = -1) {
     try {
         const normTitle = normalizeKugouText(title);
         const normArtist = normalizeKugouText(artist);
-        const keyword = `${normTitle} - ${normArtist}`;
+        const keyword = `${normTitle} ${normArtist}`.trim();
 
-        // 1. Search for the song to get a hash
+        // Search for the song to get a hash
         const searchUrl = `https://mobileservice.kugou.com/api/v3/search/song?version=9108&plat=0&pagesize=8&showtype=0&keyword=${encodeURIComponent(keyword)}`;
+        console.log(searchUrl);
         const searchRes = await fetch(searchUrl);
         const searchData = await searchRes.json();
 
@@ -61,9 +66,10 @@ async function fetchKugouLyricsAPI(title, artist, durationSeconds = -1) {
 
         let candidate = null;
 
-        // 2. Fetch lyrics candidate using hash
+        // Fetch lyrics candidate using hash
         if (targetHash) {
             const hashUrl = `https://lyrics.kugou.com/search?ver=1&man=yes&client=pc&hash=${targetHash}`;
+            console.log(hashUrl);
             const hashRes = await fetch(hashUrl);
             const hashData = await hashRes.json();
             if (hashData && hashData.candidates && hashData.candidates.length > 0) {
@@ -71,9 +77,10 @@ async function fetchKugouLyricsAPI(title, artist, durationSeconds = -1) {
             }
         }
 
-        // 3. Fallback: Fetch lyrics candidate using keyword
+        // Fallback: Fetch lyrics candidate using keyword
         if (!candidate) {
             let fallbackUrl = `https://lyrics.kugou.com/search?ver=1&man=yes&client=pc&keyword=${encodeURIComponent(keyword)}`;
+            console.log(fallbackUrl);
             if (durationSeconds !== -1) {
                 fallbackUrl += `&duration=${Math.floor(durationSeconds * 1000)}`;
             }
@@ -86,8 +93,9 @@ async function fetchKugouLyricsAPI(title, artist, durationSeconds = -1) {
 
         if (!candidate) return null;
 
-        // 4. Download actual lyrics
+        // Download actual lyrics
         const dlUrl = `https://lyrics.kugou.com/download?fmt=lrc&charset=utf8&client=pc&ver=1&id=${candidate.id}&accesskey=${candidate.accesskey}`;
+        console.log(dlUrl);
         const dlRes = await fetch(dlUrl);
         const dlData = await dlRes.json();
 

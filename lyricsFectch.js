@@ -46,7 +46,10 @@ async function getLyrics(title, artist, duration = -1) {
 
     // Deduplicate queries in case the cleanup didn't change the strings
     const uniqueQueries = queries.filter((q, index, self) =>
-        index === self.findIndex((t) => t.t === q.t && t.a === q.a)
+        index === self.findIndex((t) => 
+            t.t.toLowerCase() === q.t.toLowerCase() && 
+            t.a.toLowerCase() === q.a.toLowerCase()
+        )
     );
 
     let savedUnsyncedLyrics = null;
@@ -72,6 +75,10 @@ async function getLyrics(title, artist, duration = -1) {
             }
         } catch (err) {
             console.log(`[Lyrics Plus] Bypassed for "${query.t}":`, err.message);
+            if (err.message.includes("401") || err.message.includes("403") || err.message.includes("429") || err.message.includes("50")) {
+                console.log("[Lyrics Plus] API is currently locked/down. Aborting variations.");
+                break;
+            }
         }
     }
 
@@ -98,6 +105,10 @@ async function getLyrics(title, artist, duration = -1) {
             }
         } catch (err) {
             console.log(`[Better Lyrics] Bypassed for "${query.t}":`, err.message);
+            if (err.message.includes("401") || err.message.includes("403") || err.message.includes("429") || err.message.includes("50")) {
+                console.log("[Better Lyrics] API is currently locked/down. Aborting variations.");
+                break; // Breaks out of the Better Lyrics loop and moves straight to Lrclib
+            }
         }
     }
 
@@ -134,6 +145,7 @@ async function getLyrics(title, artist, duration = -1) {
         } catch (err) {
             // Silently ignore errors for current attempt and let the loop try the next fallback
             console.log(`Failed query for "${query.t}" by "${query.a}", trying next...`);
+            break;
         }
     }
 
@@ -181,6 +193,7 @@ async function getLyrics(title, artist, duration = -1) {
             }
         } catch (err) {
             console.log(`Failed search query for "${query.t}", trying next...`);
+            break;
         }
     }
 
@@ -200,8 +213,7 @@ async function getLyrics(title, artist, duration = -1) {
 
                 const parsedData = parseLRC(kgData);
                 
-                if (parsedData && parsedData.length > 4) {
-                    console.log(`[KuGou] Found synced lyrics for "${query.t}"`);
+                if (parsedData && parsedData.length > 2) {
                     currentLyricsData = parsedData;
                     currentLyricsData.provider = "KuGou";
                     appendLog(`[LYRICS] Success via ${currentLyricsData.provider}`);
@@ -215,7 +227,7 @@ async function getLyrics(title, artist, duration = -1) {
             console.error(`[KuGou] Error for "${query.t}":`, err.message || err);
         }
     }
-
+    
     // got cached unsynced
     if (savedUnsyncedLyrics) {
         console.log("No synced lyrics found across any provider. Deploying plain text fallback.");
@@ -349,10 +361,33 @@ function syncLyrics(currentPositionSeconds) {
 }
     
 function cleanTitle(title) {
-    if (!title) return ""; // Protect against undefined/null
-    let cleaned = String(title).replace(/\s*[\(\[](feat\.|ft\.|featuring|with)\s+[^)\]]+[\)\]]/gi, '');
-    cleaned = cleaned.replace(/\s*-\s+(feat\.|ft\.|featuring|with).*$/gi, '');
-    return cleaned.trim();
+    if (!title) return "";
+    let safeText = String(title);
+
+    const keepTags = ["slowed", "reverb", "sped up", "acoustic", "live", "remix", "cover", "instrumental", "radio edit"];
+    let savedTags = []; // Store the exact case-sensitive matches
+
+    keepTags.forEach((tag) => {
+        // Look for the tag anywhere inside ( ) or [ ] case-insensitively
+        const regex = new RegExp(`[\\(\\[][^\\)\\]]*?${tag}[^\\)\\]]*?[\\)\\]]`, 'gi');
+        safeText = safeText.replace(regex, (match) => {
+            savedTags.push(match); // Save the exact original string (e.g., "(Sped Up)")
+            return `__TAG_${savedTags.length - 1}__`; 
+        });
+    });
+
+    // Purge remaining junk
+    let cleanedText = safeText.replace(/\(.*?\)/gi, "").replace(/\[.*?\]/gi, "");
+
+    // Restore the exact tags with original capitalization
+    savedTags.forEach((savedTag, index) => {
+        cleanedText = cleanedText.replace(`__TAG_${index}__`, savedTag);
+    });
+
+    cleanedText = cleanedText.replace(/\s*-\s+(feat\.|ft\.|featuring|with).*$/gi, '');
+
+    // Replace double spaces with a single space and trim
+    return cleanedText.replace(/\s+/g, ' ').trim();
 }
 
 function cleanArtist(artist) {

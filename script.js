@@ -724,6 +724,9 @@ if (window.wallpaperRegisterMediaPropertiesListener) {
         
         // If the song changed, fetch new lyrics immediately
         if (trackSignature !== currentTrackHash && event.title) {
+            // If Python is running, it handles lyrics natively. Don't double-fetch
+            if (isPythonServerRunning) return;
+            
             currentTrackHash = trackSignature;
             // reset state
             currentMediaPosition = 0;

@@ -261,16 +261,16 @@ def monitor():
         skipped_position = media_data.get('media_position', 0)
         current_duration = media_data.get('media_duration', 0) 
         
+        # Update the hunt state only if Windows finally gives us real data
         if hunting_for_duration:
-            if current_duration == 0 or current_duration == last_track_duration:
-                media_manager = None 
-                media_data['media_duration'] = fallback_duration 
-                if status == 'Playing':
-                    elapsed_hunt = current_time - hunt_start_time
-            else:
+            if current_duration > 0 and current_duration != last_track_duration:
                 hunting_for_duration = False
                 last_track_duration = current_duration 
                 system_state['sys_log'] = "Duration fetched via SMTC"
+        
+        # apply iTunes
+        if current_duration <= 0 and fallback_duration > 0:
+            media_data['media_duration'] = fallback_duration
         
         if seek_target is not None:
             cur_pos = seek_target
