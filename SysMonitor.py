@@ -261,16 +261,19 @@ def monitor():
         skipped_position = media_data.get('media_position', 0)
         current_duration = media_data.get('media_duration', 0) 
         
-        # Update the hunt state only if Windows finally gives us real data
-        if hunting_for_duration:
-            if current_duration > 0 and current_duration != last_track_duration:
+        # Update the safe duration cache whenever Windows gives us a valid number
+        if current_duration > 0:
+            last_track_duration = current_duration
+            if hunting_for_duration:
                 hunting_for_duration = False
-                last_track_duration = current_duration 
                 system_state['sys_log'] = "Duration fetched via SMTC"
         
         # apply iTunes
-        if current_duration <= 0 and fallback_duration > 0:
-            media_data['media_duration'] = fallback_duration
+        if current_duration <= 0:
+            if last_track_duration > 0:
+                media_data['media_duration'] = last_track_duration
+            elif fallback_duration > 0:
+                media_data['media_duration'] = fallback_duration   # Use iTunes
         
         if seek_target is not None:
             cur_pos = seek_target
@@ -310,7 +313,9 @@ def monitor():
             hunting_for_duration = True 
             hunt_start_time = current_time 
             media_manager = None 
-            media_data['media_duration'] = 0 
+            media_data['media_duration'] = 0
+            
+            last_track_duration = 0 
             
             fallback_duration = 0
             threading.Thread(target=fetch_itunes_duration, args=(title, artist), daemon=True).start()
