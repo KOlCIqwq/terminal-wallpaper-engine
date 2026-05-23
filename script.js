@@ -46,9 +46,13 @@ let charEmpty = '·';
 
 const waveChars = [' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 const waveHistory = {
+    sub: new Array(30).fill(0),
     bass: new Array(30).fill(0),
+    lomid: new Array(30).fill(0),
     mid: new Array(30).fill(0),
-    treble: new Array(30).fill(0),
+    himid: new Array(30).fill(0),
+    pres: new Array(30).fill(0),
+    treb: new Array(30).fill(0),
     volume: new Array(30).fill(0)
 };
 
@@ -828,69 +832,122 @@ if (window.wallpaperRegisterAudioListener) {
         let smoothedPeak = Math.max(...globalPeakHistory);
         let dynamicNormalizer = 1.0 / Math.max(0.01, smoothedPeak);
 
-        // Peak-Driven: Use the loudest bin in each range for maximum responsiveness
-        let bass = getPeak(audioArray, 0, 5) * dynamicNormalizer;
-        let mid = getPeak(audioArray, 6, 25) * dynamicNormalizer;
-        let treble = getPeak(audioArray, 26, 63) * dynamicNormalizer;
+        // 7-Band Peak-Driven: Map 64 bins into 7 detailed ranges
+        let sub = getPeak(audioArray, 0, 2) * dynamicNormalizer;
+        let bass = getPeak(audioArray, 3, 5) * dynamicNormalizer;
+        let lomid = getPeak(audioArray, 6, 12) * dynamicNormalizer;
+        let mid = getPeak(audioArray, 13, 22) * dynamicNormalizer;
+        let himid = getPeak(audioArray, 23, 35) * dynamicNormalizer;
+        let pres = getPeak(audioArray, 36, 49) * dynamicNormalizer;
+        let treb = getPeak(audioArray, 50, 63) * dynamicNormalizer;
         
-        // Volume uses the overall peak for the visualizer, but we keep the average for the percentage
         let volume = (totalSum / 128) * dynamicNormalizer;
 
+        updatePercent('sub-perc', sub);
         updatePercent('bass-perc', bass);
+        updatePercent('lomid-perc', lomid);
         updatePercent('mid-perc', mid);
-        updatePercent('treble-perc', treble);
-        updatePercent('volume-perc', volume * 2); // Restore the *2 boost for the text
+        updatePercent('himid-perc', himid);
+        updatePercent('pres-perc', pres);
+        updatePercent('treb-perc', treb);
+        updatePercent('volume-perc', volume * 2);
 
+        updateWaveBar('bar-sub', waveHistory.sub, sub);
         updateWaveBar('bar-bass', waveHistory.bass, bass);
+        updateWaveBar('bar-lomid', waveHistory.lomid, lomid);
         updateWaveBar('bar-mid', waveHistory.mid, mid);
-        updateWaveBar('bar-treble', waveHistory.treble, treble);
-        updateWaveBar('bar-volume', waveHistory.volume, volume * 2); // Restore the *2 boost for the bar
+        updateWaveBar('bar-himid', waveHistory.himid, himid);
+        updateWaveBar('bar-pres', waveHistory.pres, pres);
+        updateWaveBar('bar-treb', waveHistory.treb, treb);
+        updateWaveBar('bar-volume', waveHistory.volume, volume * 2);
         
         // Music Mood Analysis
-        updateMusicMood(bass, mid, treble, volume * 2);
+        updateMusicMood(sub, bass, lomid, mid, himid, pres, treb, volume * 2);
     });
 }
 
-const moodEnergyHistory = [];
-const moodBassHistory = [];
+const moodHistory = {
+    sub: [],
+    bass: [],
+    lomid: [],
+    mid: [],
+    himid: [],
+    pres: [],
+    treb: []
+};
 
 let currentDisplayedMood = "( - _ - )";
 let targetMood = "( - _ - )";
 let moodConfidence = 0;
-const CONFIDENCE_THRESHOLD = 10;
+const CONFIDENCE_THRESHOLD = 12; // ~0.2 seconds - responsive but trend-based
 
-function updateMusicMood(bass, mid, treble, volume) {
+function updateMusicMood(sub, bass, lomid, mid, himid, pres, treb, volume) {
     const moodFaceEl = document.getElementById('mood-face');
     if (!moodFaceEl) return;
 
-    // Smooth values over last 15 updates (~0.25s)
-    moodEnergyHistory.push((bass + mid + treble) / 3);
-    moodBassHistory.push(bass);
-    if (moodEnergyHistory.length > 15) moodEnergyHistory.shift();
-    if (moodBassHistory.length > 15) moodBassHistory.shift();
+    // Smooth values over last 40 updates (~0.6s) to handle "small jumps"
+    moodHistory.sub.push(sub);
+    moodHistory.bass.push(bass);
+    moodHistory.lomid.push(lomid);
+    moodHistory.mid.push(mid);
+    moodHistory.himid.push(himid);
+    moodHistory.pres.push(pres);
+    moodHistory.treb.push(treb);
 
-    const avgEnergy = moodEnergyHistory.reduce((a, b) => a + b, 0) / moodEnergyHistory.length;
-    const avgBass = moodBassHistory.reduce((a, b) => a + b, 0) / moodBassHistory.length;
+    if (moodHistory.sub.length > 40) {
+        for (let key in moodHistory) moodHistory[key].shift();
+    }
+
+    const getAvg = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;
+    
+    // Consolidate into 3 smoothed Zones
+    const s = getAvg(moodHistory.sub);
+    const b = getAvg(moodHistory.bass);
+    const lm = getAvg(moodHistory.lomid);
+    const m = getAvg(moodHistory.mid);
+    const hm = getAvg(moodHistory.himid);
+    const p = getAvg(moodHistory.pres);
+    const t = getAvg(moodHistory.treb);
+
+    const lowZone = (s + b) / 2;
+    const midZone = (lm + m + hm) / 3;
+    const highZone = (p + t) / 2;
+
+    const totalEnergy = (lowZone + midZone + highZone) / 3;
+    const maxZone = Math.max(lowZone, midZone, highZone);
 
     let calculatedMood = "( - _ - )"; // Idle
     
-    if (avgEnergy < 0.05) {
+    if (totalEnergy < 0.05) {
         calculatedMood = "( - _ - )";
-    } else if (avgEnergy < 0.25) {
-        calculatedMood = "( ￣︶￣ )"; // Calm
-    } else if (avgEnergy < 0.3) {
-        if (avgBass > 0.3) {
-            calculatedMood = "\\(>o<)ﾉ"; // Dance
-        } else {
-            calculatedMood = "d(￣◇￣)b"; // Bop
-        }
+    } else if (totalEnergy > 0.65) {
+        calculatedMood = "( Ò 皿 Ó )"; // Aggressive / Intense
     } else {
-        // High Energy
-        if (avgBass > 0.6) {
-            calculatedMood = "(╬ Ò﹏Ó)"; // Intense
-        } else {
-            calculatedMood = "\\(★ω★)/"; // Hype/Dance
+        
+        // V-Shape Signature (High Lows + High Highs, Low Mids)
+        if (lowZone > midZone + 0.12 && highZone > midZone + 0.12) {
+            calculatedMood = "( ☆▽☆ )"; // Pop / Sparkly / Hype
+        } 
+        // Bass Dominant Signature
+        else if (lowZone > midZone + 0.15 && lowZone > highZone + 0.15) {
+            calculatedMood = "( ⌐■_■ )"; // Basshead / Grooving
+        } 
+        // Mid Dominant Signature (Acoustic/Vocals)
+        else if (midZone > lowZone + 0.1 && midZone > highZone + 0.1) {
+            calculatedMood = "( ˘ ᴗ ˘ )"; // Acoustic / Vocal / Focused
+        } 
+        // Warm/Chill Signature (High Low/Mid, Rolled off Highs)
+        else if (lowZone > highZone + 0.18 && midZone > highZone + 0.18) {
+            calculatedMood = "( ︶ ω ︶ )"; // Lo-Fi / Chill
+        } 
+        // Default Bop Fallback
+        else {
+            calculatedMood = "d(￣◇￣)b";
         }
+    }
+
+    if (moodConfidence === 0) {
+        console.log(`[MOOD DEBUG] L: ${lowZone.toFixed(2)} | M: ${midZone.toFixed(2)} | H: ${highZone.toFixed(2)} | Energy: ${totalEnergy.toFixed(2)} | Current: ${currentDisplayedMood} | Target: ${calculatedMood}`);
     }
     if (calculatedMood === targetMood) {
         moodConfidence++;

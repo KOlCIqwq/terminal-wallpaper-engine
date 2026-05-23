@@ -7,7 +7,6 @@ import psutil
 import wmi
 import pythoncom
 import threading
-import gpustat
 import asyncio
 import datetime
 import time
@@ -17,8 +16,15 @@ import urllib.request
 import urllib.parse
 from urllib.parse import urlparse, parse_qs
 import winreg
-import pythoncom
 from pycaw.pycaw import AudioUtilities
+import pynvml
+
+# Initialize NVML for GPU monitoring
+try:
+    pynvml.nvmlInit()
+    nvml_available = True
+except:
+    nvml_available = False
 
 try:
     from winsdk.windows.media.control import GlobalSystemMediaTransportControlsSessionManager
@@ -62,6 +68,21 @@ cached_title = ""
 cached_artist = ""
 fallback_duration = 0 
 
+# Cache for /specs response to reduce CPU spike on frequent polling
+last_specs_json = b""
+last_specs_time = 0
+
+volume_control = None
+def get_volume_control():
+    global volume_control
+    if volume_control is None:
+        try:
+            pythoncom.CoInitialize()
+            devices = AudioUtilities.GetSpeakers()
+            volume_control = devices.EndpointVolume
+        except:
+            pass
+    return volume_control
 def fetch_itunes_duration(title, artist):
     global fallback_duration
     try:
@@ -77,37 +98,32 @@ def fetch_itunes_duration(title, artist):
     except:
         pass 
 
-async def get_media_info():
+async def get_media_info(fetch_props=False):
     global media_manager, cached_title, cached_artist
     
     if media_manager is None:
         try:
             media_manager = await GlobalSystemMediaTransportControlsSessionManager.request_async()
-        except Exception:
-            return system_state 
+        except:
+            return {} 
     
     current_session = media_manager.get_current_session()
     
     if current_session:
         playback_info = current_session.get_playback_info()
         status = playback_info.playback_status if playback_info else 0 
+        status_str = "Playing" if status == 4 else ("Paused" if status == 5 else "Stopped")
         
-        if status == 4:
-            status_str = "Playing"
-        elif status == 5:
-            status_str = "Paused"
-        else:
-            status_str = "Stopped"
-        
-        try:
-            props = await current_session.try_get_media_properties_async()
-            if props:
-                cached_title = props.title
-                cached_artist = props.artist
-        except:
-            pass
+        if fetch_props:
+            try:
+                props = await current_session.try_get_media_properties_async()
+                if props:
+                    cached_title = props.title
+                    cached_artist = props.artist
+            except:
+                pass
             
-        if status_str == "Stopped":
+        if status_str == "Stopped" and not cached_title:
             cached_title = "No Media"
             cached_artist = ""
 
@@ -118,21 +134,12 @@ async def get_media_info():
                 end = timeline.end_time.total_seconds()
                 position = timeline.position.total_seconds()
                 duration = end - start
-                
-                last_updated = timeline.last_updated_time
-                now = datetime.datetime.now(datetime.timezone.utc)
-                snapshot_age = (now - last_updated).total_seconds()
-                
-                if duration < 0:
-                    duration = 0
+                snapshot_age = (datetime.datetime.now(datetime.timezone.utc) - timeline.last_updated_time).total_seconds()
+                if duration < 0: duration = 0
             else:
-                position = 0
-                duration = 0
-                snapshot_age = 0
+                position, duration, snapshot_age = 0, 0, 0
         except:
-            position = 0
-            duration = 0
-            snapshot_age = 0
+            position, duration, snapshot_age = 0, 0, 0
 
         return {
             "media_title": cached_title,
@@ -208,34 +215,34 @@ def get_static():
     system_state['ram_total'] = ram_info
     system_state['sys_log'] = "Hardware specs loaded"
 
-def monitor():
+async def monitor_async():
     global system_state, seek_target, seek_time, media_manager, fallback_duration 
-    
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
     
     last_track_title = ""
     last_track_duration = 0 
     cur_pos = 0.0
     prev_skip_position = 0
-    last_seek_target = -999.0
     reset = False
     startup = True
     
     hunting_for_duration = False 
-    hunt_start_time = 0
-    keyboard_jolt_fired = False
-    hard_seek_fired = False
     
     psutil.cpu_percent(interval=None)
-    
     pythoncom.CoInitialize() 
 
     tick = 0
     last_tick_time = time.time()
     
+    # NVML handle for faster GPU polling
+    nvml_handle = None
+    if nvml_available:
+        try:
+            nvml_handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        except:
+            pass
+    
     while True:
-        time.sleep(0.25)
+        await asyncio.sleep(0.25)
         
         current_time = time.time()
         dt = current_time - last_tick_time
@@ -243,15 +250,17 @@ def monitor():
         
         if tick % 4 == 0:
             system_state['cpu_percent'] = psutil.cpu_percent(interval=None)
-            try:
-                devices = AudioUtilities.GetSpeakers()
-                vol_scalar = devices.EndpointVolume.GetMasterVolumeLevelScalar() #type:ignore
-                system_state['sys_volume'] = round(vol_scalar * 100)
-            except:
-                pass
+            vol_ctrl = get_volume_control()
+            if vol_ctrl:
+                try:
+                    system_state['sys_volume'] = round(vol_ctrl.GetMasterVolumeLevelScalar() * 100)
+                except:
+                    pass
         
+        # Only fetch props on startup, track change, or every 5 seconds
+        fetch_props = startup or (tick % 20 == 0)
         try:
-            media_data = loop.run_until_complete(get_media_info())
+            media_data = await get_media_info(fetch_props=fetch_props)
         except:
             media_data = {}
         
@@ -261,23 +270,20 @@ def monitor():
         skipped_position = media_data.get('media_position', 0)
         current_duration = media_data.get('media_duration', 0) 
         
-        # Update the safe duration cache whenever Windows gives us a valid number
         if current_duration > 0:
             last_track_duration = current_duration
             if hunting_for_duration:
                 hunting_for_duration = False
                 system_state['sys_log'] = "Duration fetched via SMTC"
         
-        # apply iTunes
         if current_duration <= 0:
             if last_track_duration > 0:
                 media_data['media_duration'] = last_track_duration
             elif fallback_duration > 0:
-                media_data['media_duration'] = fallback_duration   # Use iTunes
-        
+                media_data['media_duration'] = fallback_duration   
+
         if seek_target is not None:
             cur_pos = seek_target
-            last_seek_target = seek_target 
             seek_target = None
             
         snapshot_age = media_data.get('snapshot_age', 0)
@@ -309,14 +315,13 @@ def monitor():
             last_track_title = title
             cur_pos = 0
             reset = True
-            
             hunting_for_duration = True 
-            hunt_start_time = current_time 
-            media_manager = None 
+            
+            # Force property fetch on next tick
+            startup = True
+            
             media_data['media_duration'] = 0
-            
             last_track_duration = 0
-            
             fallback_duration = 0
             threading.Thread(target=fetch_itunes_duration, args=(title, artist), daemon=True).start()
             
@@ -332,13 +337,15 @@ def monitor():
         media_data['media_position'] = cur_pos
         system_state.update(media_data)
         
+        # GPU and RAM every 3s
         if tick % 12 == 0:
-            try:
-                gpu_stats = gpustat.GPUStatCollection.new_query()
-                system_state['gpu_percent'] = gpu_stats.gpus[0].utilization if gpu_stats.gpus else 0
-            except:
-                pass
-                
+            if nvml_handle:
+                try:
+                    util = pynvml.nvmlDeviceGetUtilizationRates(nvml_handle)
+                    system_state['gpu_percent'] = util.gpu
+                except:
+                    pass
+            
             try:
                 mem = psutil.virtual_memory()
                 system_state['ram_percent'] = mem.percent
@@ -354,8 +361,10 @@ def monitor():
                 pass 
             
         tick += 1
-        if tick > 1000: 
-            tick = 0
+        if tick > 1000: tick = 0
+
+def monitor():
+    asyncio.run(monitor_async())
             
 async def media_seek(position_seconds):
     global media_manager
@@ -376,7 +385,7 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
         pass
 
     def do_GET(self):
-        global system_state
+        global system_state, last_specs_json, last_specs_time
         parsed_path = urlparse(self.path)
         
         if parsed_path.path == '/specs':
@@ -384,7 +393,13 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            self.wfile.write(json.dumps(system_state).encode())
+            
+            now = time.time()
+            # Cache response for 150ms to prevent spikes from rapid polling
+            if now - last_specs_time > 0.15:
+                last_specs_json = json.dumps(system_state).encode()
+                last_specs_time = now
+            self.wfile.write(last_specs_json)
             
         elif parsed_path.path == '/media/playpause':
             self.send_response(200)
@@ -436,10 +451,11 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                     vol_val = float(query_components['val'][0]) / 100.0
                     vol_val = max(0.0, min(1.0, vol_val))
                     
-                    pythoncom.CoInitialize()
-                    devices = AudioUtilities.GetSpeakers()
-                    devices.EndpointVolume.SetMasterVolumeLevelScalar(vol_val, None) #type:ignore
-                    system_state['sys_log'] = f"Sys Vol override: {round(vol_val * 100)}%"
+                    vol_ctrl = get_volume_control()
+                    if vol_ctrl:
+                        vol_ctrl.SetMasterVolumeLevelScalar(vol_val, None)
+                        system_state['sys_volume'] = round(vol_val * 100)
+                        system_state['sys_log'] = f"Sys Vol override: {round(vol_val * 100)}%"
                 except Exception as e:
                     pass
         else:

@@ -207,7 +207,9 @@ async function getLyrics(title, artist, duration = -1) {
             
             if (kgData) {
                 if (kgData.includes("纯音乐") || kgData.includes("请欣赏")) {
-                    console.log(`[KuGou] Rejected instrumental placeholder.`);
+                    if (!savedUnsyncedLyrics){
+                        savedUnsyncedLyrics = "Instrumental"
+                    }
                     continue; // Skip and let it fall back to savedUnsyncedLyrics
                 }
 
