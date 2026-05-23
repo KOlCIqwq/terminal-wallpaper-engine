@@ -42,7 +42,15 @@ let clock2Tz = localStorage.getItem('clock2Tz') || "";
 let use24hFormat = false;
 
 let charFilled = '|';
-let charEmpty = '.';
+let charEmpty = '·';
+
+const waveChars = [' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+const waveHistory = {
+    bass: new Array(30).fill(0),
+    mid: new Array(30).fill(0),
+    treble: new Array(30).fill(0),
+    volume: new Array(30).fill(0)
+};
 
 let isDraggingVolume = false;
 let volumeThrottle = null;
@@ -167,7 +175,6 @@ function updatePlayingBar(current, total) {
     const barLength = 67; 
     
     if (!total || total <= 0) {
-        // Removed "Playing: " from here
         playingBar.textContent = "-".repeat(barLength);
         playingBar.dataset.duration = 0; 
         return;
@@ -182,7 +189,6 @@ function updatePlayingBar(current, total) {
     const filledLength = Math.floor(barLength * percent);
     const emptyLength = barLength - filledLength;
 
-    // Start with an empty string instead of "Playing: "
     let barString = ""; 
 
     if (filledLength === 0) {
@@ -830,10 +836,10 @@ if (window.wallpaperRegisterAudioListener) {
         updatePercent('treble-perc',treble);
         updatePercent('volume-perc', volume * 2);
 
-        updateBar('bar-bass', bass);
-        updateBar('bar-mid', mid);
-        updateBar('bar-treble', treble);
-        updateBar('bar-volume', volume * 2);
+        updateWaveBar('bar-bass', waveHistory.bass, bass);
+        updateWaveBar('bar-mid', waveHistory.mid, mid);
+        updateWaveBar('bar-treble', waveHistory.treble, treble);
+        updateWaveBar('bar-volume', waveHistory.volume, volume * 2);
     });
 }
 
@@ -845,6 +851,46 @@ function getAverage(array, start, end) {
     return sum / (end - start + 1);
 }
 
+function updateWaveBar(elementId, historyArray, value) {
+    const totalLength = 30;
+    
+    // Push new value and remove oldest
+    historyArray.push(value);
+    if (historyArray.length > totalLength) {
+        historyArray.shift();
+    }
+    
+    let barHTML = "";
+    for (let i = 0; i < totalLength; i++) {
+        let val = historyArray[i];
+        let clampedValue = Math.max(0, Math.min(val, 1));
+        
+        // Map 0.0-1.0 to 0-7 for characters
+        let charIndex = Math.floor(clampedValue * (waveChars.length - 1));
+        let char = waveChars[charIndex];
+        
+        // Color based on individual segment intensity
+        let colorClass = "green";
+        if (clampedValue >= 0.6 && clampedValue < 0.85) {
+            colorClass = "yellow";
+        } else if (clampedValue >= 0.85) {
+            colorClass = "red";
+        }
+        
+        if (clampedValue > 0.05) {
+            barHTML += `<span class="${colorClass} glow">${char}</span>`;
+        } else {
+            // Using middle-dot or similar for 'silence' in the wave history for better visibility than space
+            barHTML += `<span class="gray">·</span>`;
+        }
+    }
+    
+    const el = document.getElementById(elementId);
+    if (el) {
+        el.innerHTML = barHTML;
+    }
+}
+
 function updateBar(elementId, value) {
     const totalLength = 30; 
     const clampedValue = Math.max(0, Math.min(value, 1));
@@ -854,15 +900,15 @@ function updateBar(elementId, value) {
     
     for (let i = 0; i < totalLength; i++) {
         let colorClass = "green";
-        if (i >= 7 && i < 13) {
+        if (i >= 18 && i < 25) {
             colorClass = "yellow";
-        } else if (i >= 13) {
+        } else if (i >= 25) {
             colorClass = "red";
         }
 
         // Add either a colored filled bar, or a standard gray empty dot
         if (i < filledCount) {
-            barHTML += `<span class="${colorClass}">${charFilled}</span>`;
+            barHTML += `<span class="${colorClass} glow">${charFilled}</span>`;
         } else {
             barHTML += `<span class="gray">${charEmpty}</span>`;
         }
@@ -1170,28 +1216,28 @@ function renderVolumeBar(percent) {
     const clampedPercent = Math.max(0, Math.min(100, percent));
     const filledCount = Math.round((clampedPercent / 100) * totalLength);
     
-    // Start with the opening bracket
-    let barHTML = "[";
+    // Start with the opening bracket (outside the interactive span for accuracy)
+    let barHTML = "[<span class=\"volume-line\">";
     
     for (let i = 0; i < totalLength; i++) {
         // Determine the color zone for this specific character slot
         let colorClass = "green";
-        if (i >= 7 && i < 13) {
+        if (i >= 18 && i < 25) {
             colorClass = "yellow";
-        } else if (i >= 13) {
+        } else if (i >= 25) {
             colorClass = "red";
         }
 
-        // Add either a colored filled bar, or a standard gray empty dot
+        // Add either a colored "lit" segment, or a standard gray "unlit" segment
         if (i < filledCount) {
-            barHTML += `<span class="${colorClass}">${charFilled}</span>`;
+            barHTML += `<span class="${colorClass} glow">${charFilled}</span>`;
         } else {
             barHTML += `<span class="gray">${charEmpty}</span>`;
         }
     }
     
-    // Close the bracket (default text color)
-    barHTML += "]";
+    // Close the interactive span and the bracket
+    barHTML += "</span>]";
     
     volumeControlBar.innerHTML = barHTML;
     
@@ -1203,7 +1249,11 @@ function renderVolumeBar(percent) {
 
 if (volumeControlBar) {
     const updateVolumeFromMouse = (e) => {
-        const rect = volumeControlBar.getBoundingClientRect();
+        // Target the inner interactive span specifically for better hit-box accuracy
+        const interactiveSpan = volumeControlBar.querySelector('.volume-line');
+        if (!interactiveSpan) return;
+
+        const rect = interactiveSpan.getBoundingClientRect();
         let clickX = e.clientX - rect.left;
         
         let percent = clickX / rect.width;

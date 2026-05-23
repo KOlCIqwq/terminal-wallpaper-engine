@@ -315,7 +315,7 @@ def monitor():
             media_manager = None 
             media_data['media_duration'] = 0
             
-            last_track_duration = 0 
+            last_track_duration = 0
             
             fallback_duration = 0
             threading.Thread(target=fetch_itunes_duration, args=(title, artist), daemon=True).start()

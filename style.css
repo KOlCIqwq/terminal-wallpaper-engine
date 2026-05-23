@@ -126,6 +126,18 @@ body {
 .yellow { color: var(--text-yellow); }
 .green { color: var(--text-green); }
 .red { color: var(--text-red); }
+
+/* LED Glow Effects for Bars */
+.glow.green {
+    text-shadow: 0 0 5px rgba(74, 246, 38, 0.7);
+}
+.glow.yellow {
+    text-shadow: 0 0 5px rgba(229, 192, 123, 0.7);
+}
+.glow.red {
+    text-shadow: 0 0 5px rgba(224, 108, 117, 0.7);
+}
+
 .header-text { color: var(--text-header); font-weight: bold; }
 .divider-text { color: var(--text-divider); }
 
