@@ -52,6 +52,8 @@ const waveHistory = {
     volume: new Array(30).fill(0)
 };
 
+const globalPeakHistory = [];
+
 let isDraggingVolume = false;
 let volumeThrottle = null;
 let lastVolumeSetTime = 0;
@@ -810,8 +812,8 @@ setInterval(() => {
 
 if (window.wallpaperRegisterAudioListener) {
     window.wallpaperRegisterAudioListener((audioArray) => {
+        let currentMax = 0;
         let totalSum = 0;
-        let currentMax = 0; // We need the peak to normalize the others
 
         for (let i = 0; i < 128; i++) {
             let val = audioArray[i];
@@ -819,28 +821,99 @@ if (window.wallpaperRegisterAudioListener) {
             if (val > currentMax) currentMax = val;
         }
 
-        let volume = totalSum / 128;
+        // Auto-Gain: Track peak history for scaling
+        globalPeakHistory.push(currentMax);
+        if (globalPeakHistory.length > 30) globalPeakHistory.shift(); // ~0.5s window
+        
+        let smoothedPeak = Math.max(...globalPeakHistory);
+        let dynamicNormalizer = 1.0 / Math.max(0.01, smoothedPeak);
 
-        let normalizer = 1;
-        if (currentMax > 0.05) {
-            normalizer = 1 / currentMax;
-        }
+        // Peak-Driven: Use the loudest bin in each range for maximum responsiveness
+        let bass = getPeak(audioArray, 0, 5) * dynamicNormalizer;
+        let mid = getPeak(audioArray, 6, 25) * dynamicNormalizer;
+        let treble = getPeak(audioArray, 26, 63) * dynamicNormalizer;
+        
+        // Volume uses the overall peak for the visualizer, but we keep the average for the percentage
+        let volume = (totalSum / 128) * dynamicNormalizer;
 
-        // Wallpaper Engine returns 128 bins (0-64 = left, 64-127 = right)
-        let bass = getAverage(audioArray, 0, 10) * normalizer;
-        let mid = getAverage(audioArray, 11, 40) * normalizer;
-        let treble = getAverage(audioArray, 41, 63) * normalizer;
-
-        updatePercent('bass-perc',bass);
-        updatePercent('mid-perc',mid);
-        updatePercent('treble-perc',treble);
-        updatePercent('volume-perc', volume * 2);
+        updatePercent('bass-perc', bass);
+        updatePercent('mid-perc', mid);
+        updatePercent('treble-perc', treble);
+        updatePercent('volume-perc', volume * 2); // Restore the *2 boost for the text
 
         updateWaveBar('bar-bass', waveHistory.bass, bass);
         updateWaveBar('bar-mid', waveHistory.mid, mid);
         updateWaveBar('bar-treble', waveHistory.treble, treble);
-        updateWaveBar('bar-volume', waveHistory.volume, volume * 2);
+        updateWaveBar('bar-volume', waveHistory.volume, volume * 2); // Restore the *2 boost for the bar
+        
+        // Music Mood Analysis
+        updateMusicMood(bass, mid, treble, volume * 2);
     });
+}
+
+const moodEnergyHistory = [];
+const moodBassHistory = [];
+
+let currentDisplayedMood = "( - _ - )";
+let targetMood = "( - _ - )";
+let moodConfidence = 0;
+const CONFIDENCE_THRESHOLD = 10;
+
+function updateMusicMood(bass, mid, treble, volume) {
+    const moodFaceEl = document.getElementById('mood-face');
+    if (!moodFaceEl) return;
+
+    // Smooth values over last 15 updates (~0.25s)
+    moodEnergyHistory.push((bass + mid + treble) / 3);
+    moodBassHistory.push(bass);
+    if (moodEnergyHistory.length > 15) moodEnergyHistory.shift();
+    if (moodBassHistory.length > 15) moodBassHistory.shift();
+
+    const avgEnergy = moodEnergyHistory.reduce((a, b) => a + b, 0) / moodEnergyHistory.length;
+    const avgBass = moodBassHistory.reduce((a, b) => a + b, 0) / moodBassHistory.length;
+
+    let calculatedMood = "( - _ - )"; // Idle
+    
+    if (avgEnergy < 0.05) {
+        calculatedMood = "( - _ - )";
+    } else if (avgEnergy < 0.25) {
+        calculatedMood = "( ￣︶￣ )"; // Calm
+    } else if (avgEnergy < 0.3) {
+        if (avgBass > 0.3) {
+            calculatedMood = "\\(>o<)ﾉ"; // Dance
+        } else {
+            calculatedMood = "d(￣◇￣)b"; // Bop
+        }
+    } else {
+        // High Energy
+        if (avgBass > 0.6) {
+            calculatedMood = "(╬ Ò﹏Ó)"; // Intense
+        } else {
+            calculatedMood = "\\(★ω★)/"; // Hype/Dance
+        }
+    }
+    if (calculatedMood === targetMood) {
+        moodConfidence++;
+    } else {
+        targetMood = calculatedMood;
+        moodConfidence = 0;
+    }
+
+    if (moodConfidence >= CONFIDENCE_THRESHOLD && currentDisplayedMood !== targetMood) {
+        currentDisplayedMood = targetMood;
+        moodFaceEl.textContent = currentDisplayedMood;
+        
+        // Slightly reset confidence to add additional "stickiness" once a mood is chosen
+        moodConfidence = Math.floor(CONFIDENCE_THRESHOLD / 2);
+    }
+}
+
+function getPeak(array, start, end) {
+    let peak = 0;
+    for (let i = start; i <= end; i++) {
+        if (array[i] > peak) peak = array[i];
+    }
+    return peak;
 }
 
 function getAverage(array, start, end) {
