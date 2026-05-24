@@ -567,7 +567,7 @@ window.myPropertyHandlers.push(function(properties) {
     }
 
     if (properties.bg_dim !== undefined) {
-        currentBgDim = properties.bg_dim.value / 100;
+        window.currentBgDim = properties.bg_dim.value / 100;
     }
 
     const imageLayer = document.getElementById('bg-layer-image');
@@ -579,11 +579,11 @@ window.myPropertyHandlers.push(function(properties) {
 
     let isValidVideo = vPath !== "" && vPath.match(/\.(mp4|webm|ogg|mov|avi|mkv)$/i) !== null;
 
-    if (isValidVideo && currentBgType === "video" && vPath !== "") {
+    if (isValidVideo && currentBgType === "video" && vPath !== "" && !window.pixivEnabled) {
         
         // VIDEO MODE
         if (overlayLayer) {
-            overlayLayer.style.backgroundColor = `rgba(0, 0, 0, ${currentBgDim})`;
+            overlayLayer.style.backgroundColor = `rgba(0, 0, 0, ${window.currentBgDim})`;
             overlayLayer.style.display = 'block';
         }
         if (imageLayer) imageLayer.style.display = 'none';
@@ -602,7 +602,7 @@ window.myPropertyHandlers.push(function(properties) {
         videoLayer.loop = true;
         videoLayer.play().catch(err => console.log("Video Play Error:", err));
         
-    } else if (currentBgType === "image" && iPath !== "") {
+    } else if (currentBgType === "image" && iPath !== "" && !window.pixivEnabled) {
         
         // IMAGE MODE
         if (videoLayer) {
@@ -610,20 +610,23 @@ window.myPropertyHandlers.push(function(properties) {
             videoLayer.removeAttribute('src'); 
             videoLayer.load(); 
         }
-        if (imageLayer) imageLayer.style.display = 'none';
-        if (overlayLayer) overlayLayer.style.display = 'none'; 
         
         let safePath = iPath.replace(/\\/g, '/');
-        let overlay = `rgba(0, 0, 0, ${currentBgDim})`;
+        if (imageLayer) {
+            imageLayer.style.backgroundImage = `url('file:///${safePath}')`;
+            imageLayer.style.display = 'block';
+        }
         
-        document.body.style.backgroundImage = `linear-gradient(${overlay}, ${overlay}), url('file:///${safePath}')`;
-        document.body.style.backgroundSize = 'cover';
-        document.body.style.backgroundPosition = 'center';
-        document.body.style.backgroundRepeat = 'no-repeat';
+        if (overlayLayer) {
+            overlayLayer.style.backgroundColor = `rgba(0, 0, 0, ${window.currentBgDim})`;
+            overlayLayer.style.display = 'block';
+        }
+
+        document.body.style.backgroundImage = 'none';
         
-    } else {
+    } else if (!window.pixivEnabled) {
         
-        // SOLID COLOR MODE
+        // SOLID COLOR / NO BG MODE
         if (videoLayer) {
             videoLayer.style.display = 'none';
             videoLayer.removeAttribute('src');
@@ -919,35 +922,38 @@ function updateMusicMood(sub, bass, lomid, mid, himid, pres, treb, volume) {
     let calculatedMood = "( - _ - )"; // Idle
     
     if (totalEnergy < 0.05) {
-        calculatedMood = "( - _ - )";
+        calculatedMood = "_(:3 」∠ )_";
+    }
+    else if (totalEnergy > 0.65) {
+        calculatedMood = "٩(•ิ˓̭ •ิ )ง"; // Aggressive / Intense
     } else if (totalEnergy > 0.65) {
         calculatedMood = "( Ò 皿 Ó )"; // Aggressive / Intense
     } else {
         
         // V-Shape Signature (High Lows + High Highs, Low Mids)
-        if (lowZone > midZone + 0.12 && highZone > midZone + 0.12) {
+        if (lowZone > midZone + 0.1 && highZone > midZone + 0.1) {
             calculatedMood = "( ☆▽☆ )"; // Pop / Sparkly / Hype
         } 
         // Bass Dominant Signature
-        else if (lowZone > midZone + 0.15 && lowZone > highZone + 0.15) {
+        else if (lowZone > midZone + 0.1 && lowZone > highZone + 0.1) {
             calculatedMood = "( ⌐■_■ )"; // Basshead / Grooving
         } 
         // Mid Dominant Signature (Acoustic/Vocals)
         else if (midZone > lowZone + 0.1 && midZone > highZone + 0.1) {
-            calculatedMood = "( ˘ ᴗ ˘ )"; // Acoustic / Vocal / Focused
+            calculatedMood = "( • ̀ω•́ )"; // Acoustic / Vocal / Focused
         } 
         // Warm/Chill Signature (High Low/Mid, Rolled off Highs)
-        else if (lowZone > highZone + 0.18 && midZone > highZone + 0.18) {
-            calculatedMood = "( ︶ ω ︶ )"; // Lo-Fi / Chill
+        else if (lowZone > highZone + 0.1 && midZone > highZone + 0.1) {
+            calculatedMood = "ƪ(•̃͡ε•̃͡)∫"; // Lo-Fi / Chill
         } 
         // Default Bop Fallback
         else {
-            calculatedMood = "d(￣◇￣)b";
+            calculatedMood = "d(`･∀･)b";
         }
     }
 
     if (moodConfidence === 0) {
-        console.log(`[MOOD DEBUG] L: ${lowZone.toFixed(2)} | M: ${midZone.toFixed(2)} | H: ${highZone.toFixed(2)} | Energy: ${totalEnergy.toFixed(2)} | Current: ${currentDisplayedMood} | Target: ${calculatedMood}`);
+        //console.log(`[MOOD DEBUG] L: ${lowZone.toFixed(2)} | M: ${midZone.toFixed(2)} | H: ${highZone.toFixed(2)} | Energy: ${totalEnergy.toFixed(2)} | Current: ${currentDisplayedMood} | Target: ${calculatedMood}`);
     }
     if (calculatedMood === targetMood) {
         moodConfidence++;

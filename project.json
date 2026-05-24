@@ -307,6 +307,20 @@
                 "text": "Background Settings",
                 "type": "group"
             },
+            "pixiv_enabled": {
+                "order": 500.1,
+                "text": "Enable Pixiv Daily Ranking",
+                "type": "bool",
+                "value": false
+            },
+            "pixiv_update_interval": {
+                "order": 500.2,
+                "text": "Pixiv Update Interval (Minutes)",
+                "type": "slider",
+                "min": 1,
+                "max": 1440,
+                "value": 60
+            },
             "bg_color": {
                 "order": 501,
                 "text": "Background Color",
@@ -321,8 +335,7 @@
             "bg_video": {
                 "order": 503,
                 "text": "Background Video",
-                "type": "file",
-                "fileType": "video"
+                "type": "file"
             },
             "bg_dim": {
                 "order": 504,
