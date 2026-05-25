@@ -3,6 +3,7 @@ let pixivRankingType = 'daily';
 let pixivCurrentIndex = 0;
 let pixivRankings = [];
 let pixivUpdateInterval = 60; // minutes
+let pixivShuffle = false;
 let pixivTimer = null;
 let isPixivLoading = false;
 
@@ -18,7 +19,7 @@ function fetchPixivRanking() {
             isPixivLoading = false;
             
             if (json && json.data && Array.isArray(json.data)) {
-                const horizontalRankings = json.data
+                let horizontalRankings = json.data
                     .filter(item => item.width > item.height)
                     .map(item => ({
                         url: `https://pixiv.cat/${item.id}.jpg`,
@@ -28,6 +29,9 @@ function fetchPixivRanking() {
                     }));
 
                 if (horizontalRankings.length > 0) {
+                    if (pixivShuffle) {
+                        horizontalRankings = horizontalRankings.sort(() => Math.random() - 0.5);
+                    }
                     pixivRankings = horizontalRankings;
                     pixivCurrentIndex = 0;
                     appendLog(`[PIXIV] Found ${pixivRankings.length} horizontal high-res wallpapers.`);
@@ -58,7 +62,7 @@ function fetchAlternativeRanking() {
         .then(data => {
             isPixivLoading = false;
             if (data && data.data) {
-                const horizontalFallback = data.data
+                let horizontalFallback = data.data
                     .filter(item => item.width > item.height)
                     .map(item => ({
                         url: item.urls.original.replace('i.pximg.net', 'i.pixiv.cat'),
@@ -68,6 +72,9 @@ function fetchAlternativeRanking() {
                     }));
 
                 if (horizontalFallback.length > 0) {
+                    if (pixivShuffle) {
+                        horizontalFallback = horizontalFallback.sort(() => Math.random() - 0.5);
+                    }
                     pixivRankings = horizontalFallback;
                     pixivCurrentIndex = 0;
                     applyPixivBackground();
@@ -94,6 +101,9 @@ function applyPixivBackground() {
     const videoLayer = document.getElementById('bg-layer-video');
     const imageLayer = document.getElementById('bg-layer-image');
     const overlayLayer = document.getElementById('bg-layer-overlay');
+    const btnNext = document.getElementById('btn-pixiv-next');
+
+    if (btnNext) btnNext.style.display = 'block';
 
     // Hide video
     if (videoLayer) {
@@ -130,6 +140,16 @@ function nextPixivWallpaper() {
     if (!window.pixivEnabled || pixivRankings.length === 0) return;
     pixivCurrentIndex = (pixivCurrentIndex + 1) % pixivRankings.length;
     applyPixivBackground();
+    // Restart timer if it exists to reset the interval
+    if (pixivTimer) startPixivTimer();
+}
+
+const btnPixivNext = document.getElementById('btn-pixiv-next');
+if (btnPixivNext) {
+    btnPixivNext.addEventListener('click', (e) => {
+        e.stopPropagation();
+        nextPixivWallpaper();
+    });
 }
 
 function startPixivTimer() {
@@ -149,10 +169,8 @@ window.myPropertyHandlers.push(function(properties) {
             shouldFetch = true;
         } else if (!newValue) {
             if (pixivTimer) clearInterval(pixivTimer);
-            // Re-trigger script.js background logic if needed
-            if (typeof window.wallpaperPropertyListener !== 'undefined') {
-                // This is a bit hacky, but script.js will re-evaluate based on pixivEnabled being false
-            }
+            const btnNext = document.getElementById('btn-pixiv-next');
+            if (btnNext) btnNext.style.display = 'none';
         }
         window.pixivEnabled = newValue;
     }
@@ -160,6 +178,17 @@ window.myPropertyHandlers.push(function(properties) {
     if (properties.pixiv_update_interval !== undefined) {
         pixivUpdateInterval = properties.pixiv_update_interval.value;
         if (window.pixivEnabled) startPixivTimer();
+    }
+
+    if (properties.pixiv_shuffle !== undefined) {
+        pixivShuffle = properties.pixiv_shuffle.value;
+        if (window.pixivEnabled && pixivRankings.length > 0) {
+            if (pixivShuffle) {
+                pixivRankings = pixivRankings.sort(() => Math.random() - 0.5);
+                pixivCurrentIndex = 0;
+                applyPixivBackground();
+            }
+        }
     }
 
     if (shouldFetch && window.pixivEnabled) {

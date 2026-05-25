@@ -287,6 +287,13 @@ function fetchSystemSpecs() {
                     appendLog(`[MONITOR] ${data.sys_log}`);
                 }
 
+                // Handle conversion progress specifically for the log widget
+                if (data.conv_progress !== undefined && data.conv_progress >= 0 && data.conv_progress < 100) {
+                    const logElement = document.getElementById('log_text');
+                    if (logElement && !overrides.log) {
+                        logElement.textContent = `[CONVERTING] ${data.conv_progress}%`;
+                    }
+                }
                 const trackSignature = `${data.media_title}-${data.media_artist}`;
                 
                 if (trackSignature !== currentTrackHash && data.media_status === 'Playing') {
@@ -635,6 +642,22 @@ window.myPropertyHandlers.push(function(properties) {
         if (imageLayer) imageLayer.style.display = 'none';
         if (overlayLayer) overlayLayer.style.display = 'none';
         document.body.style.backgroundImage = 'none';
+    }
+
+    if (properties.mp4_path) {
+        let val = properties.mp4_path.value.trim();
+        if (val !== "") {
+            fetch(`http://127.0.0.1:25555/media/convert?path=${encodeURIComponent(val)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === "started") {
+                        appendLog(`[CONVERTER] Started. Look for ${data.output} soon.`);
+                    } else {
+                        appendLog(`[CONVERTER] Error: ${data.message}`);
+                    }
+                })
+                .catch(err => appendLog("[CONVERTER] Python server offline."));
+        }
     }
 
     if (properties.extra_clock_1_city) {
@@ -1430,4 +1453,83 @@ if (volumeControlBar) {
             isDraggingVolume = false;
         }
     });
+}
+
+// --- Unified Background Logic ---
+const btnBrowseBg = document.getElementById('btn-browse-mp4');
+if (btnBrowseBg) {
+    btnBrowseBg.addEventListener('click', (e) => {
+        e.stopPropagation();
+        appendLog("[BROWSER] Opening file dialog...");
+        fetch('http://127.0.0.1:25555/media/browse')
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    localStorage.setItem('custom_bg_path', data.path);
+                    applyCustomBackground(data.path);
+                }
+            })
+            .catch(err => appendLog("[BROWSER] Python server offline."));
+    });
+}
+
+function applyCustomBackground(path) {
+    if (!path) return;
+    if (window.pixivEnabled) {
+        appendLog("[BROWSER] Disable Pixiv first to use custom background.");
+        return;
+    }
+
+    window.customBgActive = true;
+    const videoLayer = document.getElementById('bg-layer-video');
+    const imageLayer = document.getElementById('bg-layer-image');
+    const overlayLayer = document.getElementById('bg-layer-overlay');
+    const isVideo = path.match(/\.(mp4|webm|ogg|mov|avi|mkv)$/i);
+    const proxyUrl = `http://127.0.0.1:25555/video_proxy?path=${encodeURIComponent(path)}&t=${Date.now()}`;
+
+    document.body.style.backgroundColor = 'transparent';
+    document.body.style.backgroundImage = 'none';
+
+    if (isVideo) {
+        if (imageLayer) imageLayer.style.display = 'none';
+        videoLayer.pause();
+        videoLayer.src = "";
+        videoLayer.load();
+        videoLayer.style.display = 'block';
+        
+        videoLayer.oncanplay = () => {
+            appendLog("[BROWSER] Handshake success.");
+            videoLayer.play().catch(e => appendLog(`[BROWSER] Play fail: ${e.message}`));
+        };
+        videoLayer.onplaying = () => appendLog(`[BROWSER] Video Active: ${path.split('\\').pop()}`);
+        videoLayer.onerror = () => {
+            const err = videoLayer.error;
+            appendLog(`[BROWSER] Video Error: ${err ? err.code : 'unknown'}`);
+        };
+        
+        videoLayer.src = proxyUrl;
+    } else {
+        if (videoLayer) {
+            videoLayer.style.display = 'none';
+            videoLayer.src = "";
+        }
+        if (imageLayer) {
+            imageLayer.style.backgroundImage = `url('${proxyUrl}')`;
+            imageLayer.style.display = 'block';
+            appendLog(`[BROWSER] Image Applied: ${path.split('\\').pop()}`);
+        }
+    }
+    
+    if (overlayLayer) {
+        overlayLayer.style.backgroundColor = `rgba(0, 0, 0, ${window.currentBgDim})`;
+        overlayLayer.style.display = 'block';
+    }
+}
+
+// Auto-load custom BG if saved
+const savedBg = localStorage.getItem('custom_bg_path');
+if (savedBg) {
+    setTimeout(() => {
+        if (!window.pixivEnabled) applyCustomBackground(savedBg);
+    }, 1000);
 }

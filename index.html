@@ -7,7 +7,7 @@
 </head>
 <body>
     <div id="bg-layer-image"></div>
-    <video id="bg-layer-video" autoplay loop muted playsinline style="display: none;"></video>
+    <video id="bg-layer-video" autoplay loop muted playsinline preload="auto" crossorigin="anonymous" style="display: none;"></video>
     <div id="bg-layer-overlay"></div>
     <div class="draggable-widget" id="widget-sys">
         <div class="sys-block">
@@ -154,7 +154,13 @@
     </div>
 
     <div class="draggable-widget" id="widget-logs" style="width: 450px;">
-        <div class="header-text">LOGS.EXE</div>
+        <div class="header-text">
+            LOGS.EXE
+            <div style="float: right; display: flex; gap: 5px; margin-top: -2px;">
+                <span id="btn-pixiv-next" class="yellow" style="cursor: pointer; font-size: 11px; border: 1px solid #555; padding: 0 5px; display: none;">[ NEXT BG ]</span>
+                <span id="btn-browse-mp4" class="yellow" style="float: right; cursor: pointer; font-size: 11px; border: 1px solid #555; padding: 0 5px;">[ SELECT BG ]</span>
+            </div>
+        </div>
         <div class="divider-text divider">--------------------------------------------------------------------------------</div>
         <div id="log-list" class="white" style="font-size: 0.95em; opacity: 1.0; min-height: 160px; display: flex; flex-direction: column; justify-content: flex-end;">
         </div>

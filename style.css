@@ -39,6 +39,7 @@ body {
     max-width: 95vw;
     padding: 15px; 
     box-sizing: border-box;
+    z-index: 100; /* Always above background layers */
     
     /* Dynamically controlled background and border */
     background-color: rgba(var(--widget-bg-rgb), var(--widget-bg-opacity)); 
@@ -57,7 +58,7 @@ body {
 
 .edit-mode-active .draggable-widget:active {
     cursor: grabbing;
-    z-index: 100;
+    z-index: 1000;
 }
 
 /*reset*/
@@ -72,7 +73,7 @@ body {
     font-size: 14px;
     padding: 8px 15px;
     cursor: pointer;
-    z-index: 1000;
+    z-index: 2000;
     transition: all 0.2s;
 }
 
@@ -261,8 +262,9 @@ body {
     opacity: 1;
 }
 
+/* --- BACKGROUND LAYERS --- */
 #bg-layer-image, #bg-layer-video, #bg-layer-overlay {
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
@@ -270,7 +272,7 @@ body {
 }
 
 #bg-layer-image {
-    z-index: -3; /* Bottom layer */
+    z-index: 1;
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -278,14 +280,16 @@ body {
 }
 
 #bg-layer-video {
-    z-index: -2; /* Middle layer */
+    z-index: 2;
     object-fit: cover;
     display: none;
+    background-color: transparent;
 }
 
 #bg-layer-overlay {
-    z-index: -1; /* Top layer */
-    pointer-events: none; /* Allows clicks to pass through */
+    z-index: 3;
+    pointer-events: none;
+    display: none;
 }
 
 .lyrics-content.unsynced-view {

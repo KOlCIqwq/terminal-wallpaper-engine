@@ -321,6 +321,12 @@
                 "max": 1440,
                 "value": 60
             },
+            "pixiv_shuffle": {
+                "order": 500.3,
+                "text": "Shuffle Pixiv Wallpapers",
+                "type": "bool",
+                "value": false
+            },
             "bg_color": {
                 "order": 501,
                 "text": "Background Color",
@@ -335,7 +341,8 @@
             "bg_video": {
                 "order": 503,
                 "text": "Background Video",
-                "type": "file"
+                "type": "file",
+                "fileType": "video"
             },
             "bg_dim": {
                 "order": 504,
@@ -349,6 +356,17 @@
                 "order": 600,
                 "text": "Map Settings",
                 "type": "group"
+            },
+            "converter_group": {
+                "order": 700,
+                "text": "Video Converter (MP4 to OGG)",
+                "type": "group"
+            },
+            "mp4_path": {
+                "order": 701,
+                "text": "Paste MP4 Full Path here (e.g. C:\\video.mp4)",
+                "type": "textinput",
+                "value": ""
             },
             "map_image_size": {
                 "order": 601,

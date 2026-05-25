@@ -55,7 +55,8 @@ system_state = {
     "media_position": 0,
     "media_duration": 0,
     "sys_volume": 0,
-    "sys_log": "Initializing monitor..."
+    "sys_log": "Initializing monitor...",
+    "conv_progress": -1
 }
 
 PORT = 25555
@@ -384,6 +385,13 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Range, Content-Type')
+        self.end_headers()
+
     def do_GET(self):
         global system_state, last_specs_json, last_specs_time
         parsed_path = urlparse(self.path)
@@ -458,6 +466,125 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                         system_state['sys_log'] = f"Sys Vol override: {round(vol_val * 100)}%"
                 except Exception as e:
                     pass
+        elif parsed_path.path == '/media/convert':
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            
+            query_components = parse_qs(parsed_path.query)
+            if 'path' in query_components:
+                input_path = query_components['path'][0].strip('"')
+                if os.path.exists(input_path):
+                    output_path = input_path.rsplit('.', 1)[0] + '.ogg'
+                    system_state['sys_log'] = f"Converting: {os.path.basename(input_path)}..."
+                    
+                    def do_convert(inp, outp):
+                        import subprocess
+                        import re
+                        try:
+                            dur_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', inp]
+                            dur_res = subprocess.run(dur_cmd, capture_output=True, text=True)
+                            total_duration = float(dur_res.stdout.strip()) if dur_res.returncode == 0 else 0
+                            
+                            cmd = ['ffmpeg', '-y', '-i', inp, '-c:v', 'libtheora', '-q:v', '7', '-c:a', 'libvorbis', '-q:a', '5', outp]
+                            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, universal_newlines=True)
+                            
+                            for line in process.stdout:
+                                match = re.search(r"time=(\d+):(\d+):(\d+.\d+)", line)
+                                if match and total_duration > 0:
+                                    hours, minutes, seconds = map(float, match.groups())
+                                    current_time = hours * 3600 + minutes * 60 + seconds
+                                    progress = min(100, int((current_time / total_duration) * 100))
+                                    system_state['conv_progress'] = progress
+                            
+                            process.wait()
+                            if process.returncode == 0:
+                                system_state['conv_progress'] = 100
+                                system_state['sys_log'] = f"Success! Created: {os.path.basename(outp)}"
+                            else:
+                                system_state['conv_progress'] = -1
+                        except Exception as e:
+                            system_state['conv_progress'] = -1
+                        finally:
+                            time.sleep(3)
+                            if system_state['conv_progress'] == 100:
+                                system_state['conv_progress'] = -1
+                            
+                    threading.Thread(target=do_convert, args=(input_path, output_path), daemon=True).start()
+                    self.wfile.write(json.dumps({"status": "started", "output": output_path}).encode())
+                else:
+                    self.wfile.write(json.dumps({"status": "error", "message": "File not found"}).encode())
+        
+        elif parsed_path.path == '/media/browse':
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            
+            import subprocess
+            # Expand filter to include images and videos
+            cmd = "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.OpenFileDialog; $f.Filter = 'All Supported|*.mp4;*.webm;*.ogg;*.mov;*.avi;*.mkv;*.png;*.jpg;*.jpeg;*.webp;*.gif|Videos|*.mp4;*.webm;*.ogg;*.mov;*.avi;*.mkv|Images|*.png;*.jpg;*.jpeg;*.webp;*.gif'; $f.ShowDialog() | Out-Null; $f.FileName"
+            try:
+                result = subprocess.check_output(["powershell", "-Command", cmd], text=True).strip()
+                if result:
+                    self.wfile.write(json.dumps({"status": "success", "path": result}).encode())
+                    system_state['sys_log'] = f"Selected: {os.path.basename(result)}"
+                else:
+                    self.wfile.write(json.dumps({"status": "cancelled"}).encode())
+            except:
+                self.wfile.write(json.dumps({"status": "error"}).encode())
+
+        elif parsed_path.path == '/video_proxy':
+            query_components = parse_qs(parsed_path.query)
+            if 'path' in query_components:
+                file_path = query_components['path'][0].strip('"')
+                if os.path.exists(file_path):
+                    ext = file_path.lower().rsplit('.', 1)[-1]
+                    if ext in ['ogg', 'ogv']: mime_type = 'video/ogg'
+                    elif ext == 'webm': mime_type = 'video/webm'
+                    elif ext == 'mp4': mime_type = 'video/mp4'
+                    else: mime_type = 'application/octet-stream'
+                    
+                    file_size = os.path.getsize(file_path)
+                    range_header = self.headers.get('Range')
+                    start = 0
+                    end = file_size - 1
+                    
+                    if range_header:
+                        import re
+                        match = re.search(r'bytes=(\d+)-(\d*)', range_header)
+                        if match:
+                            start = int(match.group(1))
+                            if match.group(2):
+                                end = int(match.group(2))
+                        self.send_response(206)
+                        self.send_header('Content-Range', f'bytes {start}-{end}/{file_size}')
+                    else:
+                        self.send_response(200)
+                    
+                    chunk_size = end - start + 1
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.send_header('Content-type', mime_type)
+                    self.send_header('Accept-Ranges', 'bytes')
+                    self.send_header('Content-Length', str(chunk_size))
+                    self.send_header('Connection', 'close')
+                    self.end_headers()
+                    
+                    try:
+                        with open(file_path, 'rb') as f:
+                            f.seek(start)
+                            remaining = chunk_size
+                            while remaining > 0:
+                                chunk = f.read(min(remaining, 64 * 1024))
+                                if not chunk: break
+                                self.wfile.write(chunk)
+                                remaining -= len(chunk)
+                    except:
+                        pass
+                    return
+            self.send_response(404)
+            self.end_headers()
         else:
             self.send_response(404)
             self.end_headers()
@@ -469,7 +596,9 @@ def run_server():
     t_monitor = threading.Thread(target=monitor, daemon=True)
     t_monitor.start()
     
-    server = http.server.HTTPServer(('127.0.0.1', PORT), RequestHandler)
+    # Use ThreadingHTTPServer to handle multiple concurrent video requests (metadata + chunks)
+    from http.server import ThreadingHTTPServer
+    server = ThreadingHTTPServer(('127.0.0.1', PORT), RequestHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
