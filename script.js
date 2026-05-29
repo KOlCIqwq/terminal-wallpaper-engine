@@ -28,8 +28,10 @@ let currentMediaPosition = 0;
 
 let currentBgVideo = "";
 let currentBgImage = "";
-let currentBgDim = 0.6;
+window.currentBgDim = 0.6;
 let currentBgType = "image";
+
+let pendingWebmPath = null;
 
 let isPythonServerRunning = true;
 let isNativePlaying = false;
@@ -288,10 +290,15 @@ function fetchSystemSpecs() {
                 }
 
                 // Handle conversion progress specifically for the log widget
-                if (data.conv_progress !== undefined && data.conv_progress >= 0 && data.conv_progress < 100) {
+                if (data.conv_progress !== undefined && data.conv_progress >= 0) {
                     const logElement = document.getElementById('log_text');
                     if (logElement && !overrides.log) {
                         logElement.textContent = `[CONVERTING] ${data.conv_progress}%`;
+                    }
+                    if (data.conv_progress === 100 && pendingWebmPath) {
+                        const pathToApply = pendingWebmPath;
+                        pendingWebmPath = null;
+                        setTimeout(() => applyCustomBackground(pathToApply), 500);
                     }
                 }
                 const trackSignature = `${data.media_title}-${data.media_artist}`;
@@ -583,6 +590,15 @@ window.myPropertyHandlers.push(function(properties) {
 
     let vPath = currentBgVideo === "null" ? "" : currentBgVideo;
     let iPath = currentBgImage === "null" ? "" : currentBgImage;
+
+    // If a custom background is active from the picker, ignore the WE paths but keep dimming updated
+    if (window.customBgActive) {
+        if (overlayLayer) {
+            overlayLayer.style.backgroundColor = `rgba(0, 0, 0, ${window.currentBgDim})`;
+            overlayLayer.style.display = 'block';
+        }
+        return;
+    }
 
     let isValidVideo = vPath !== "" && vPath.match(/\.(mp4|webm|ogg|mov|avi|mkv)$/i) !== null;
 
@@ -1175,8 +1191,8 @@ widgets.forEach((widget) => {
         initialLeft = rect.left;
         initialTop = rect.top;
         
-        widgets.forEach(w => w.style.zIndex = 1);
-        widget.style.zIndex = 10;
+        widgets.forEach(w => w.style.zIndex = 100);
+        widget.style.zIndex = 1000;
     });
 });
 
@@ -1485,26 +1501,38 @@ function applyCustomBackground(path) {
     const imageLayer = document.getElementById('bg-layer-image');
     const overlayLayer = document.getElementById('bg-layer-overlay');
     const isVideo = path.match(/\.(mp4|webm|ogg|mov|avi|mkv)$/i);
+    const isMp4 = path.match(/\.(mp4|mov|m4v|avi|mkv)$/i);
     const proxyUrl = `http://127.0.0.1:25555/video_proxy?path=${encodeURIComponent(path)}&t=${Date.now()}`;
 
     document.body.style.backgroundColor = 'transparent';
     document.body.style.backgroundImage = 'none';
 
     if (isVideo) {
+        if (isMp4) {
+            appendLog("[BROWSER] MP4 detected. Starting auto-conversion to WebM...");
+            const webmPath = path.rsplit ? path.rsplit('.', 1)[0] + '.webm' : path.substring(0, path.lastIndexOf('.')) + '.webm';
+            pendingWebmPath = webmPath;
+            fetch(`http://127.0.0.1:25555/media/convert?path=${encodeURIComponent(path)}`).catch(e => console.log(e));
+            return; 
+        }
         if (imageLayer) imageLayer.style.display = 'none';
         videoLayer.pause();
         videoLayer.src = "";
         videoLayer.load();
         videoLayer.style.display = 'block';
         
-        videoLayer.oncanplay = () => {
+        /* videoLayer.oncanplay = () => {
             appendLog("[BROWSER] Handshake success.");
             videoLayer.play().catch(e => appendLog(`[BROWSER] Play fail: ${e.message}`));
-        };
-        videoLayer.onplaying = () => appendLog(`[BROWSER] Video Active: ${path.split('\\').pop()}`);
+        }; */
+        /* videoLayer.onplaying = () => appendLog(`[BROWSER] Video Active: ${path.split('\\').pop()}`); */
         videoLayer.onerror = () => {
             const err = videoLayer.error;
-            appendLog(`[BROWSER] Video Error: ${err ? err.code : 'unknown'}`);
+            let msg = `[BROWSER] Video Error: ${err ? err.code : 'unknown'}`;
+            if (err && err.code === 4) {
+                msg += " (Codec unsupported. Convert to WebM!)";
+            }
+            appendLog(msg);
         };
         
         videoLayer.src = proxyUrl;

@@ -318,7 +318,7 @@
                 "text": "Pixiv Update Interval (Minutes)",
                 "type": "slider",
                 "min": 1,
-                "max": 1440,
+                "max": 360,
                 "value": 60
             },
             "pixiv_shuffle": {
@@ -359,7 +359,7 @@
             },
             "converter_group": {
                 "order": 700,
-                "text": "Video Converter (MP4 to OGG)",
+                "text": "Video Converter (MP4 to WebM)",
                 "type": "group"
             },
             "mp4_path": {

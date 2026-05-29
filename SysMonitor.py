@@ -476,7 +476,7 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
             if 'path' in query_components:
                 input_path = query_components['path'][0].strip('"')
                 if os.path.exists(input_path):
-                    output_path = input_path.rsplit('.', 1)[0] + '.ogg'
+                    output_path = input_path.rsplit('.', 1)[0] + '.webm'
                     system_state['sys_log'] = f"Converting: {os.path.basename(input_path)}..."
                     
                     def do_convert(inp, outp):
@@ -487,7 +487,8 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                             dur_res = subprocess.run(dur_cmd, capture_output=True, text=True)
                             total_duration = float(dur_res.stdout.strip()) if dur_res.returncode == 0 else 0
                             
-                            cmd = ['ffmpeg', '-y', '-i', inp, '-c:v', 'libtheora', '-q:v', '7', '-c:a', 'libvorbis', '-q:a', '5', outp]
+                            # Higher quality VP8 settings
+                            cmd = ['ffmpeg', '-y', '-i', inp, '-c:v', 'libvpx', '-crf', '4', '-b:v', '12M', '-deadline', 'good', '-cpu-used', '2', '-c:a', 'libvorbis', outp]
                             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, universal_newlines=True)
                             
                             for line in process.stdout:
@@ -550,6 +551,7 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                     range_header = self.headers.get('Range')
                     start = 0
                     end = file_size - 1
+                    status_code = 200
                     
                     if range_header:
                         import re
@@ -558,17 +560,16 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                             start = int(match.group(1))
                             if match.group(2):
                                 end = int(match.group(2))
-                        self.send_response(206)
-                        self.send_header('Content-Range', f'bytes {start}-{end}/{file_size}')
-                    else:
-                        self.send_response(200)
-                    
+                            status_code = 206
+
                     chunk_size = end - start + 1
+                    self.send_response(status_code)
                     self.send_header('Access-Control-Allow-Origin', '*')
                     self.send_header('Content-type', mime_type)
                     self.send_header('Accept-Ranges', 'bytes')
                     self.send_header('Content-Length', str(chunk_size))
-                    self.send_header('Connection', 'close')
+                    if status_code == 206:
+                        self.send_header('Content-Range', f'bytes {start}-{end}/{file_size}')
                     self.end_headers()
                     
                     try:
@@ -583,6 +584,8 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                     except:
                         pass
                     return
+                else:
+                    system_state['sys_log'] = f"Proxy Error: File not found: {os.path.basename(file_path)}"
             self.send_response(404)
             self.end_headers()
         else:

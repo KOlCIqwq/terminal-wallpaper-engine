@@ -4,13 +4,39 @@ let pixivCurrentIndex = 0;
 let pixivRankings = [];
 let pixivUpdateInterval = 60; // minutes
 let pixivShuffle = false;
-let pixivTimer = null;
 let isPixivLoading = false;
+let lastPixivAction = Date.now();
+
+// Heartbeat for Sleep Detection & Interval Management
+let lastHeartbeat = Date.now();
+setInterval(() => {
+    const now = Date.now();
+    const diff = now - lastHeartbeat;
+    const intervalMs = pixivUpdateInterval * 60 * 1000;
+    
+    // Sleep/Wake Detection
+    if (diff > 10000) {
+        appendLog(`[SYSTEM] Wake detected (Gap: ${Math.round(diff/1000)}s). Refetching Pixiv...`);
+        if (window.pixivEnabled) {
+            fetchPixivRanking();
+            lastPixivAction = now;
+        }
+    } 
+    // Scheduled Update Check
+    else if (window.pixivEnabled && intervalMs > 0 && (now - lastPixivAction >= intervalMs)) {
+        appendLog("[PIXIV] Interval reached. Cycling wallpaper...");
+        nextPixivWallpaper();
+        lastPixivAction = now;
+    }
+    
+    lastHeartbeat = now;
+}, 2000);
 
 function fetchPixivRanking() {
     if (!window.pixivEnabled || isPixivLoading) return;
 
     isPixivLoading = true;
+    lastPixivAction = Date.now();
     appendLog("[PIXIV] Fetching rankings from JSON API...");
 
     fetch('https://pixiv.mokeyjay.com/?r=api/pixiv-json')
@@ -140,8 +166,7 @@ function nextPixivWallpaper() {
     if (!window.pixivEnabled || pixivRankings.length === 0) return;
     pixivCurrentIndex = (pixivCurrentIndex + 1) % pixivRankings.length;
     applyPixivBackground();
-    // Restart timer if it exists to reset the interval
-    if (pixivTimer) startPixivTimer();
+    lastPixivAction = Date.now();
 }
 
 const btnPixivNext = document.getElementById('btn-pixiv-next');
@@ -150,13 +175,6 @@ if (btnPixivNext) {
         e.stopPropagation();
         nextPixivWallpaper();
     });
-}
-
-function startPixivTimer() {
-    if (pixivTimer) clearInterval(pixivTimer);
-    if (window.pixivEnabled && pixivUpdateInterval > 0) {
-        pixivTimer = setInterval(nextPixivWallpaper, pixivUpdateInterval * 60 * 1000);
-    }
 }
 
 window.myPropertyHandlers = window.myPropertyHandlers || [];
@@ -168,7 +186,6 @@ window.myPropertyHandlers.push(function(properties) {
         if (newValue && !window.pixivEnabled) {
             shouldFetch = true;
         } else if (!newValue) {
-            if (pixivTimer) clearInterval(pixivTimer);
             const btnNext = document.getElementById('btn-pixiv-next');
             if (btnNext) btnNext.style.display = 'none';
         }
@@ -177,7 +194,7 @@ window.myPropertyHandlers.push(function(properties) {
 
     if (properties.pixiv_update_interval !== undefined) {
         pixivUpdateInterval = properties.pixiv_update_interval.value;
-        if (window.pixivEnabled) startPixivTimer();
+        lastPixivAction = Date.now();
     }
 
     if (properties.pixiv_shuffle !== undefined) {
@@ -193,7 +210,6 @@ window.myPropertyHandlers.push(function(properties) {
 
     if (shouldFetch && window.pixivEnabled) {
         fetchPixivRanking();
-        startPixivTimer();
     }
     
     if (properties.bg_dim !== undefined && window.pixivEnabled && pixivRankings.length > 0) {
