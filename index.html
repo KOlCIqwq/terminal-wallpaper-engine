@@ -157,12 +157,49 @@
         <div class="header-text">
             LOGS.EXE
             <div style="float: right; display: flex; gap: 5px; margin-top: -2px;">
+                <span id="btn-settings" class="yellow" style="cursor: pointer; font-size: 11px; border: 1px solid #555; padding: 0 5px;">[ SETTINGS ]</span>
                 <span id="btn-pixiv-next" class="yellow" style="cursor: pointer; font-size: 11px; border: 1px solid #555; padding: 0 5px; display: none;">[ NEXT BG ]</span>
                 <span id="btn-browse-mp4" class="yellow" style="float: right; cursor: pointer; font-size: 11px; border: 1px solid #555; padding: 0 5px;">[ SELECT BG ]</span>
             </div>
         </div>
         <div class="divider-text divider">--------------------------------------------------------------------------------</div>
         <div id="log-list" class="white" style="font-size: 0.95em; opacity: 1.0; min-height: 160px; display: flex; flex-direction: column; justify-content: flex-end;">
+        </div>
+    </div>
+
+    <div class="draggable-widget" id="widget-settings" style="display: none; width: 300px; z-index: 5000;">
+        <div class="header-text">SETTINGS.EXE <span id="btn-close-settings" class="red" style="float: right; cursor: pointer;">[ X ]</span></div>
+        <div class="divider-text divider">--------------------------------------------------</div>
+        <div class="settings-content white">
+            <div class="setting-item">
+                <span class="blue">BG Video:</span>
+                <span id="toggle-bg-video" class="yellow" style="cursor: pointer;">[ ENABLED ]</span>
+            </div>
+            <div class="setting-item">
+                <span class="blue">Pixiv BG:</span>
+                <span id="btn-open-gallery" class="yellow" style="cursor: pointer; margin-right: 5px;">[ GALLERY ]</span>
+                <span id="toggle-pixiv-bg" class="yellow" style="cursor: pointer;">[ DISABLED ]</span>
+            </div>
+            <div class="setting-item">
+                <span class="blue">BG Dim:</span>
+                <span id="settings-dim-label" class="yellow">60%</span>
+            </div>
+            <div class="divider-text">--------------------------------------------------</div>
+            <div class="setting-item gray" style="font-size: 11px;">
+                * Settings saved locally in browser memory.
+            </div>
+        </div>
+    </div>
+
+    <div class="draggable-widget" id="widget-pixiv-gallery" style="display: none; width: 600px; z-index: 6000;">
+        <div class="header-text">PIXIV_GALLERY.EXE <span id="btn-close-gallery" class="red" style="float: right; cursor: pointer;">[ X ]</span></div>
+        <div class="divider-text divider">----------------------------------------------------------------------------------------------------</div>
+        <div id="gallery-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 10px; max-height: 400px; overflow-y: auto;">
+            <!-- Thumbnails injected here -->
+        </div>
+        <div class="divider-text divider">----------------------------------------------------------------------------------------------------</div>
+        <div style="padding: 5px 10px; font-size: 11px;" class="gray">
+            * Click an image to set as background. Manual selection disables auto-rotation.
         </div>
     </div>
 

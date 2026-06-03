@@ -618,12 +618,17 @@ window.myPropertyHandlers.push(function(properties) {
             videoLayer.setAttribute('src', finalUrl);
         }
 
-        videoLayer.style.display = 'block';
-        document.body.style.backgroundImage = 'none'; 
+        if (bgVideoEnabled) {
+            videoLayer.style.display = 'block';
+            videoLayer.muted = true;
+            videoLayer.loop = true;
+            videoLayer.play().catch(err => console.log("Video Play Error:", err));
+        } else {
+            videoLayer.style.display = 'none';
+            videoLayer.pause();
+        }
         
-        videoLayer.muted = true;
-        videoLayer.loop = true;
-        videoLayer.play().catch(err => console.log("Video Play Error:", err));
+        document.body.style.backgroundImage = 'none'; 
         
     } else if (currentBgType === "image" && iPath !== "" && !window.pixivEnabled) {
         
@@ -1487,6 +1492,76 @@ if (btnBrowseBg) {
             })
             .catch(err => appendLog("[BROWSER] Python server offline."));
     });
+}
+
+// --- Settings Panel Logic ---
+const btnSettings = document.getElementById('btn-settings');
+const widgetSettings = document.getElementById('widget-settings');
+const btnCloseSettings = document.getElementById('btn-close-settings');
+const toggleBgVideo = document.getElementById('toggle-bg-video');
+const togglePixivBg = document.getElementById('toggle-pixiv-bg');
+const settingsDimLabel = document.getElementById('settings-dim-label');
+
+let bgVideoEnabled = localStorage.getItem('bg_video_enabled') !== 'false'; // Default true
+
+if (btnSettings && widgetSettings) {
+    btnSettings.addEventListener('click', (e) => {
+        e.stopPropagation();
+        widgetSettings.style.display = widgetSettings.style.display === 'none' ? 'block' : 'none';
+        
+        // Position it near the logs widget
+        const logsRect = document.getElementById('widget-logs').getBoundingClientRect();
+        widgetSettings.style.left = (logsRect.left) + "px";
+        widgetSettings.style.top = (logsRect.top - 150) + "px";
+        
+        // Update labels
+        if (toggleBgVideo) toggleBgVideo.textContent = bgVideoEnabled ? "[ ENABLED ]" : "[ DISABLED ]";
+        if (togglePixivBg) togglePixivBg.textContent = window.pixivEnabled ? "[ ENABLED ]" : "[ DISABLED ]";
+        if (settingsDimLabel) settingsDimLabel.textContent = Math.round(window.currentBgDim * 100) + "%";
+    });
+}
+
+if (btnCloseSettings) {
+    btnCloseSettings.addEventListener('click', () => {
+        widgetSettings.style.display = 'none';
+    });
+}
+
+if (toggleBgVideo) {
+    toggleBgVideo.addEventListener('click', () => {
+        bgVideoEnabled = !bgVideoEnabled;
+        localStorage.setItem('bg_video_enabled', bgVideoEnabled);
+        toggleBgVideo.textContent = bgVideoEnabled ? "[ ENABLED ]" : "[ DISABLED ]";
+        refreshBackground();
+    });
+}
+
+if (togglePixivBg) {
+    togglePixivBg.addEventListener('click', () => {
+        window.pixivEnabled = !window.pixivEnabled;
+        togglePixivBg.textContent = window.pixivEnabled ? "[ ENABLED ]" : "[ DISABLED ]";
+        
+        if (window.pixivEnabled) {
+            if (typeof fetchPixivRanking === 'function') fetchPixivRanking();
+        } else {
+            const btnNext = document.getElementById('btn-pixiv-next');
+            if (btnNext) btnNext.style.display = 'none';
+            refreshBackground();
+        }
+    });
+}
+
+function refreshBackground() {
+    // This will re-trigger the applyUserProperties logic with current state
+    if (window.wallpaperPropertyListener && window.wallpaperPropertyListener.applyUserProperties) {
+        window.wallpaperPropertyListener.applyUserProperties({});
+    }
+    
+    // Also re-apply custom background if active
+    const savedBg = localStorage.getItem('custom_bg_path');
+    if (window.customBgActive && savedBg) {
+        applyCustomBackground(savedBg);
+    }
 }
 
 function applyCustomBackground(path) {
