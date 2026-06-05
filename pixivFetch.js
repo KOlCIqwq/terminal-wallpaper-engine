@@ -76,8 +76,8 @@ async function fetchPixivRanking() {
     const baseUrl = "https://hibi.yunzai-bot.com/api/pixiv/rank";
 
     try {
-        // Fetch 3 pages with size 50 each
-        for (let p = 1; p <= 4; p++) {
+        // Fetch 2 pages with size 50 each
+        for (let p = 1; p <= 3; p++) {
             try {
                 // Add a small delay between requests to prevent 429 (Too Many Requests)
                 if (p > 1) await new Promise(r => setTimeout(r, 1500));
@@ -96,6 +96,20 @@ async function fetchPixivRanking() {
                 if (json && json.illusts && Array.isArray(json.illusts)) {
                     const filtered = json.illusts
                         .filter(item => (item.width / item.height) >= 0.9)
+                        .filter(item => {
+                            // Tag Blacklist: Filter out manga, multi-page sets, etc.
+                            const excludedTags = ["漫画", "manga", "comic", "コミック", "COMIC"];
+                            if (item.tags && Array.isArray(item.tags)) {
+                                const hasExcluded = item.tags.some(t => 
+                                    excludedTags.includes(t.name) || 
+                                    excludedTags.includes(t.translated_name)
+                                );
+                                if (hasExcluded) return false;
+                            }
+                            // Also filter out multi-page illustrations which are often manga
+                            /* if (item.page_count && item.page_count > 1) return false; */
+                            return true;
+                        })
                         .map(item => {
                             // Use pixiv.cat for high-res background
                             const highRes = `https://pixiv.cat/${item.id}.jpg`;
@@ -248,6 +262,17 @@ function nextPixivWallpaper() {
     lastPixivAction = Date.now();
 }
 
+function updatePixivUI() {
+    const togglePixivBg = document.getElementById('toggle-pixiv-bg');
+    if (togglePixivBg) {
+        togglePixivBg.textContent = window.pixivEnabled ? "[ ENABLED ]" : "[ DISABLED ]";
+    }
+    const btnNext = document.getElementById('btn-pixiv-next');
+    if (btnNext) {
+        btnNext.style.display = window.pixivEnabled ? 'block' : 'none';
+    }
+}
+
 const btnPixivNext = document.getElementById('btn-pixiv-next');
 if (btnPixivNext) {
     btnPixivNext.addEventListener('click', (e) => {
@@ -266,11 +291,10 @@ window.myPropertyHandlers.push(function(properties) {
             shouldFetch = true;
         } else if (!newValue && window.pixivEnabled) {
             // Disabling
-            const btnNext = document.getElementById('btn-pixiv-next');
-            if (btnNext) btnNext.style.display = 'none';
             if (typeof refreshBackground === 'function') refreshBackground();
         }
         window.pixivEnabled = newValue;
+        updatePixivUI(); // Sync the SETTINGS.EXE label
     }
 
     if (properties.pixiv_update_interval !== undefined) {
