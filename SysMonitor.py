@@ -56,7 +56,9 @@ system_state = {
     "media_duration": 0,
     "sys_volume": 0,
     "sys_log": "Initializing monitor...",
-    "conv_progress": -1
+    "conv_progress": -1,
+    "pixiv_rankings": [],
+    "pixiv_index": 0
 }
 
 PORT = 25555
@@ -84,6 +86,7 @@ def get_volume_control():
         except:
             pass
     return volume_control
+
 def fetch_itunes_duration(title, artist):
     global fallback_duration
     try:
@@ -173,11 +176,6 @@ def media_command(command):
     ctypes.windll.user32.keybd_event(VK_CODE, 0, 0, 0) 
     ctypes.windll.user32.keybd_event(VK_CODE, 0, 2, 0) 
 
-def keyboard_jolt():
-    media_command("playpause")
-    time.sleep(0.03)
-    media_command("playpause")
-
 def get_static():
     global system_state
     pythoncom.CoInitialize()
@@ -226,15 +224,12 @@ async def monitor_async():
     reset = False
     startup = True
     
-    hunting_for_duration = False 
-    
     psutil.cpu_percent(interval=None)
     pythoncom.CoInitialize() 
 
     tick = 0
     last_tick_time = time.time()
     
-    # NVML handle for faster GPU polling
     nvml_handle = None
     if nvml_available:
         try:
@@ -258,7 +253,6 @@ async def monitor_async():
                 except:
                     pass
         
-        # Only fetch props on startup, track change, or every 5 seconds
         fetch_props = startup or (tick % 20 == 0)
         try:
             media_data = await get_media_info(fetch_props=fetch_props)
@@ -273,9 +267,6 @@ async def monitor_async():
         
         if current_duration > 0:
             last_track_duration = current_duration
-            if hunting_for_duration:
-                hunting_for_duration = False
-                system_state['sys_log'] = "Duration fetched via SMTC"
         
         if current_duration <= 0:
             if last_track_duration > 0:
@@ -316,11 +307,7 @@ async def monitor_async():
             last_track_title = title
             cur_pos = 0
             reset = True
-            hunting_for_duration = True 
-            
-            # Force property fetch on next tick
             startup = True
-            
             media_data['media_duration'] = 0
             last_track_duration = 0
             fallback_duration = 0
@@ -330,7 +317,6 @@ async def monitor_async():
             cur_pos += dt
         elif status == 'Stopped':
             cur_pos = 0
-            hunting_for_duration = False 
             media_data['media_title'] = "No Media"
             media_data['media_artist'] = ""
             media_data['media_duration'] = 0
@@ -338,28 +324,23 @@ async def monitor_async():
         media_data['media_position'] = cur_pos
         system_state.update(media_data)
         
-        # GPU and RAM every 3s
         if tick % 12 == 0:
             if nvml_handle:
                 try:
                     util = pynvml.nvmlDeviceGetUtilizationRates(nvml_handle)
                     system_state['gpu_percent'] = util.gpu
-                except:
-                    pass
-            
+                except: pass
             try:
                 mem = psutil.virtual_memory()
                 system_state['ram_percent'] = mem.percent
                 system_state['ram_used'] = round(mem.used / (1024.0 ** 3) , 1)
-            except:
-                pass
+            except: pass
             
         if tick % 240 == 0:
             try:
                 system_state['disk_percent'] = psutil.disk_usage('/').percent
                 system_state['disk_used'] = f"{round(psutil.disk_usage('/').used / (1024.0 ** 3), 1)} GB"
-            except:
-                pass 
+            except: pass 
             
         tick += 1
         if tick > 1000: tick = 0
@@ -371,26 +352,45 @@ async def media_seek(position_seconds):
     global media_manager
     if media_manager is None:
         media_manager = await GlobalSystemMediaTransportControlsSessionManager.request_async()
-        
     current_session = media_manager.get_current_session()
-    
     if current_session:
         try:
             ticks = int(position_seconds * 10000000)
             await current_session.try_change_playback_position_async(ticks)
-        except Exception as e:
-            pass
-        
+        except: pass
+
 class RequestHandler(http.server.SimpleHTTPRequestHandler):
-    def log_message(self, format, *args):
-        pass
+    def log_message(self, format, *args): pass
 
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Range, Content-Type')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Range')
         self.end_headers()
+
+    def do_POST(self):
+        global system_state
+        parsed_path = urlparse(self.path)
+        if parsed_path.path == '/media/pixiv_save':
+            try:
+                length = int(self.headers.get('Content-Length', 0))
+                post_data = self.rfile.read(length)
+                data = json.loads(post_data)
+                if 'rankings' in data: system_state['pixiv_rankings'] = data['rankings']
+                if 'index' in data: system_state['pixiv_index'] = data['index']
+                self.send_response(200)
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({'status': 'success'}).encode())
+                print(f"PIXIV STATE SAVED: {len(system_state['pixiv_rankings'])} items")
+            except Exception as e:
+                self.send_response(500)
+                self.end_headers()
+        else:
+            self.send_response(404)
+            self.end_headers()
 
     def do_GET(self):
         global system_state, last_specs_json, last_specs_time
@@ -401,231 +401,152 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            
             now = time.time()
-            # Cache response for 150ms to prevent spikes from rapid polling
             if now - last_specs_time > 0.15:
                 last_specs_json = json.dumps(system_state).encode()
                 last_specs_time = now
             self.wfile.write(last_specs_json)
             
-        elif parsed_path.path == '/media/playpause':
+        elif parsed_path.path == '/media/pixiv_load':
             self.send_response(200)
             self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-type', 'application/json')
             self.end_headers()
+            state = {'rankings': system_state['pixiv_rankings'], 'index': system_state['pixiv_index']}
+            self.wfile.write(json.dumps(state).encode())
+            
+        elif parsed_path.path == '/media/playpause':
+            self.send_response(200); self.end_headers()
             media_command("playpause")
-            system_state['sys_log'] = "Command: Play/Pause"
             
         elif parsed_path.path == '/media/next':
-            self.send_response(200)
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
+            self.send_response(200); self.end_headers()
             media_command("next")
-            system_state['sys_log'] = "Command: Next Track"
             
         elif parsed_path.path == '/media/prev':
-            self.send_response(200)
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
+            self.send_response(200); self.end_headers()
             media_command("prev")
-            system_state['sys_log'] = "Command: Prev Track"
             
         elif parsed_path.path == '/media/seek':
-            self.send_response(200)
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            
-            query_components = parse_qs(parsed_path.query)
-            if 'pos' in query_components:
+            self.send_response(200); self.end_headers()
+            q = parse_qs(parsed_path.query)
+            if 'pos' in q:
                 try:
-                    pos_sec = float(query_components['pos'][0])
+                    pos = float(q['pos'][0])
                     global seek_target, seek_time
-                    seek_target = pos_sec
-                    seek_time = time.time()
-                    seek_loop = asyncio.new_event_loop()
-                    seek_loop.run_until_complete(media_seek(pos_sec))
-                    seek_loop.close()
-                    system_state['sys_log'] = f"UI seek to {round(pos_sec)}s"
-                except ValueError:
-                    pass
+                    seek_target = pos; seek_time = time.time()
+                    loop = asyncio.new_event_loop()
+                    loop.run_until_complete(media_seek(pos)); loop.close()
+                except: pass
+
         elif parsed_path.path == '/media/volume':
-            self.send_response(200)
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            
-            query_components = parse_qs(parsed_path.query)
-            if 'val' in query_components:
+            self.send_response(200); self.end_headers()
+            q = parse_qs(parsed_path.query)
+            if 'val' in q:
                 try:
-                    vol_val = float(query_components['val'][0]) / 100.0
-                    vol_val = max(0.0, min(1.0, vol_val))
-                    
-                    vol_ctrl = get_volume_control()
-                    if vol_ctrl:
-                        vol_ctrl.SetMasterVolumeLevelScalar(vol_val, None)
-                        system_state['sys_volume'] = round(vol_val * 100)
-                        system_state['sys_log'] = f"Sys Vol override: {round(vol_val * 100)}%"
-                except Exception as e:
-                    pass
+                    v = max(0.0, min(1.0, float(q['val'][0]) / 100.0))
+                    ctrl = get_volume_control()
+                    if ctrl: ctrl.SetMasterVolumeLevelScalar(v, None)
+                except: pass
+
         elif parsed_path.path == '/media/convert':
             self.send_response(200)
             self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            
-            query_components = parse_qs(parsed_path.query)
-            if 'path' in query_components:
-                input_path = query_components['path'][0].strip('"')
-                if os.path.exists(input_path):
-                    output_path = input_path.rsplit('.', 1)[0] + '.webm'
-                    system_state['sys_log'] = f"Converting: {os.path.basename(input_path)}..."
-                    
-                    def do_convert(inp, outp):
-                        import subprocess
-                        import re
+            q = parse_qs(parsed_path.query)
+            if 'path' in q:
+                inp = q['path'][0].strip('"').replace('\\', '/')
+                if os.path.exists(inp):
+                    outp = inp.rsplit('.', 1)[0] + '.webm'
+                    system_state['sys_log'] = f"Converting..."
+                    def do_convert(i, o):
+                        import subprocess, re
                         try:
-                            dur_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', inp]
-                            dur_res = subprocess.run(dur_cmd, capture_output=True, text=True)
-                            total_duration = float(dur_res.stdout.strip()) if dur_res.returncode == 0 else 0
-                            
-                            # Higher quality VP8 settings
-                            cmd = ['ffmpeg', '-y', '-i', inp, '-c:v', 'libvpx', '-crf', '4', '-b:v', '12M', '-deadline', 'good', '-cpu-used', '2', '-c:a', 'libvorbis', outp]
-                            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, universal_newlines=True)
-                            
-                            for line in process.stdout:
-                                match = re.search(r"time=(\d+):(\d+):(\d+.\d+)", line)
-                                if match and total_duration > 0:
-                                    hours, minutes, seconds = map(float, match.groups())
-                                    current_time = hours * 3600 + minutes * 60 + seconds
-                                    progress = min(100, int((current_time / total_duration) * 100))
-                                    system_state['conv_progress'] = progress
-                            
-                            process.wait()
-                            if process.returncode == 0:
+                            dur_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', i]
+                            res = subprocess.run(dur_cmd, capture_output=True, text=True)
+                            total = float(res.stdout.strip()) if res.returncode == 0 else 0
+                            cmd = ['ffmpeg', '-y', '-i', i, '-c:v', 'libvpx', '-crf', '4', '-b:v', '12M', '-deadline', 'realtime', '-cpu-used', '4', '-c:a', 'libvorbis', o]
+                            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, universal_newlines=True)
+                            for line in proc.stdout:
+                                m = re.search(r"time=(\d+):(\d+):(\d+.\d+)", line)
+                                if m and total > 0:
+                                    h, mi, s = map(float, m.groups())
+                                    system_state['conv_progress'] = min(99, int(((h*3600 + mi*60 + s) / total) * 100))
+                            proc.wait()
+                            if proc.returncode == 0:
                                 system_state['conv_progress'] = 100
-                                system_state['sys_log'] = f"Success! Created: {os.path.basename(outp)}"
-                            else:
-                                system_state['conv_progress'] = -1
-                        except Exception as e:
-                            system_state['conv_progress'] = -1
-                        finally:
-                            time.sleep(3)
-                            if system_state['conv_progress'] == 100:
-                                system_state['conv_progress'] = -1
-                            
-                    threading.Thread(target=do_convert, args=(input_path, output_path), daemon=True).start()
-                    self.wfile.write(json.dumps({"status": "started", "output": output_path}).encode())
-                else:
-                    self.wfile.write(json.dumps({"status": "error", "message": "File not found"}).encode())
-        
+                                time.sleep(5)
+                        except: pass
+                        finally: system_state['conv_progress'] = -1
+                    threading.Thread(target=do_convert, args=(inp, outp), daemon=True).start()
+                    self.wfile.write(json.dumps({"status": "started"}).encode())
+                else: self.wfile.write(json.dumps({"status": "error"}).encode())
+
         elif parsed_path.path == '/media/browse':
-            self.send_response(200)
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            
+            self.send_response(200); self.send_header('Access-Control-Allow-Origin', '*'); self.send_header('Content-type', 'application/json'); self.end_headers()
             import subprocess
-            # Expand filter to include images and videos
             cmd = "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.OpenFileDialog; $f.Filter = 'All Supported|*.mp4;*.webm;*.ogg;*.mov;*.avi;*.mkv;*.png;*.jpg;*.jpeg;*.webp;*.gif|Videos|*.mp4;*.webm;*.ogg;*.mov;*.avi;*.mkv|Images|*.png;*.jpg;*.jpeg;*.webp;*.gif'; $f.ShowDialog() | Out-Null; $f.FileName"
             try:
-                result = subprocess.check_output(["powershell", "-Command", cmd], text=True).strip()
-                if result:
-                    self.wfile.write(json.dumps({"status": "success", "path": result}).encode())
-                    system_state['sys_log'] = f"Selected: {os.path.basename(result)}"
-                else:
-                    self.wfile.write(json.dumps({"status": "cancelled"}).encode())
-            except:
-                self.wfile.write(json.dumps({"status": "error"}).encode())
+                res = subprocess.check_output(["powershell", "-Command", cmd], text=True).strip()
+                if res: self.wfile.write(json.dumps({"status": "success", "path": res}).encode())
+                else: self.wfile.write(json.dumps({"status": "cancelled"}).encode())
+            except: self.wfile.write(json.dumps({"status": "error"}).encode())
 
         elif parsed_path.path == '/video_proxy':
-            query_components = parse_qs(parsed_path.query)
-            if 'path' in query_components:
-                file_path = query_components['path'][0].strip('"')
-                if os.path.exists(file_path):
-                    ext = file_path.lower().rsplit('.', 1)[-1]
-                    if ext in ['ogg', 'ogv']: mime_type = 'video/ogg'
-                    elif ext == 'webm': mime_type = 'video/webm'
-                    elif ext == 'mp4': mime_type = 'video/mp4'
-                    else: mime_type = 'application/octet-stream'
-                    
-                    file_size = os.path.getsize(file_path)
-                    range_header = self.headers.get('Range')
-                    start = 0
-                    end = file_size - 1
-                    status_code = 200
-                    
-                    if range_header:
+            q = parse_qs(parsed_path.query)
+            if 'path' in q:
+                fp = q['path'][0].strip('"').replace('\\', '/')
+                if os.path.exists(fp):
+                    ext = fp.lower().rsplit('.', 1)[-1]
+                    mime = 'video/webm' if ext == 'webm' else ('video/mp4' if ext == 'mp4' else 'application/octet-stream')
+                    size = os.path.getsize(fp)
+                    rh = self.headers.get('Range')
+                    s, e = 0, size - 1
+                    status = 200
+                    if rh:
                         import re
-                        match = re.search(r'bytes=(\d+)-(\d*)', range_header)
-                        if match:
-                            start = int(match.group(1))
-                            if match.group(2):
-                                end = int(match.group(2))
-                            status_code = 206
-
-                    chunk_size = end - start + 1
-                    self.send_response(status_code)
+                        m = re.search(r'bytes=(\d+)-(\d*)', rh)
+                        if m:
+                            s = int(m.group(1))
+                            if m.group(2): e = int(m.group(2))
+                            status = 206
+                    cs = e - s + 1
+                    self.send_response(status)
                     self.send_header('Access-Control-Allow-Origin', '*')
-                    self.send_header('Content-type', mime_type)
+                    self.send_header('Content-type', mime)
                     self.send_header('Accept-Ranges', 'bytes')
-                    self.send_header('Content-Length', str(chunk_size))
-                    if status_code == 206:
-                        self.send_header('Content-Range', f'bytes {start}-{end}/{file_size}')
+                    self.send_header('Content-Length', str(cs))
+                    if status == 206: self.send_header('Content-Range', f'bytes {s}-{e}/{size}')
                     self.end_headers()
-                    
                     try:
-                        with open(file_path, 'rb') as f:
-                            f.seek(start)
-                            remaining = chunk_size
-                            while remaining > 0:
-                                chunk = f.read(min(remaining, 64 * 1024))
+                        with open(fp, 'rb') as f:
+                            f.seek(s); rem = cs
+                            while rem > 0:
+                                chunk = f.read(min(rem, 64 * 1024))
                                 if not chunk: break
-                                self.wfile.write(chunk)
-                                remaining -= len(chunk)
-                    except:
-                        pass
+                                self.wfile.write(chunk); rem -= len(chunk)
+                    except: pass
                     return
-                else:
-                    system_state['sys_log'] = f"Proxy Error: File not found: {os.path.basename(file_path)}"
-            self.send_response(404)
-            self.end_headers()
+            self.send_response(404); self.end_headers()
         else:
-            self.send_response(404)
-            self.end_headers()
+            self.send_response(404); self.end_headers()
 
 def run_server():
-    t_static = threading.Thread(target=get_static, daemon=True)
-    t_static.start()
-
-    t_monitor = threading.Thread(target=monitor, daemon=True)
-    t_monitor.start()
-    
-    # Use ThreadingHTTPServer to handle multiple concurrent video requests (metadata + chunks)
+    threading.Thread(target=get_static, daemon=True).start()
+    threading.Thread(target=monitor, daemon=True).start()
     from http.server import ThreadingHTTPServer
     server = ThreadingHTTPServer(('127.0.0.1', PORT), RequestHandler)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        server.server_close()
+    try: server.serve_forever()
+    except KeyboardInterrupt: server.server_close()
         
 def add_to_startup():
     app_name = "SysMonitor" 
-    
-    if getattr(sys, 'frozen', False):
-        exe_path = sys.executable
-    else:
-        exe_path = os.path.abspath(__file__)
-        
+    exe_path = sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)
     try:
-        key = winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
-            r"Software\Microsoft\Windows\CurrentVersion\Run",
-            0,
-            winreg.KEY_SET_VALUE
-        )
-        winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, exe_path)
-        winreg.CloseKey(key)
-    except Exception as e:
-        pass
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
+        winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, exe_path); winreg.CloseKey(key)
+    except: pass
 
 if __name__ == '__main__':
     add_to_startup()

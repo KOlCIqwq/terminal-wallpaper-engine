@@ -15,6 +15,38 @@ function saveBlacklist() {
     localStorage.setItem('pixiv_blacklist', JSON.stringify(Array.from(pixivBlacklist)));
 }
 
+async function savePixivState() {
+    if (!window.pixivEnabled || pixivRankings.length === 0) return;
+    try {
+        console.log(`[PIXIV] Saving state to Python... (Index: ${pixivCurrentIndex})`);
+        await fetch('http://127.0.0.1:25555/media/pixiv_save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                rankings: pixivRankings,
+                index: pixivCurrentIndex
+            })
+        });
+    } catch (e) { console.log("State save failed", e); }
+}
+
+async function loadPixivState() {
+    try {
+        console.log("[PIXIV] Attempting to load state from Python...");
+        const response = await fetch('http://127.0.0.1:25555/media/pixiv_load');
+        const state = await response.json();
+        if (state && state.rankings && state.rankings.length > 0) {
+            pixivRankings = state.rankings;
+            pixivCurrentIndex = state.index;
+            console.log(`[PIXIV] Restored ${pixivRankings.length} wallpapers.`);
+            appendLog(`[PIXIV] Restored ${pixivRankings.length} wallpapers from Python.`);
+            applyPixivBackground();
+            return true;
+        }
+    } catch (e) { console.log("State load failed", e); }
+    return false;
+}
+
 // Heartbeat for Sleep Detection & Interval Management
 let lastHeartbeat = Date.now();
 setInterval(() => {
@@ -64,12 +96,24 @@ async function fetchPixivRanking() {
                 if (json && json.illusts && Array.isArray(json.illusts)) {
                     const filtered = json.illusts
                         .filter(item => (item.width / item.height) >= 0.9)
-                        .map(item => ({
-                            url: `https://pixiv.cat/${item.id}.jpg`,
-                            title: item.title,
-                            user: (item.user ? item.user.name : "Unknown"),
-                            link: `https://www.pixiv.net/artworks/${item.id}`
-                        }))
+                        .map(item => {
+                            // Use pixiv.cat for high-res background
+                            const highRes = `https://pixiv.cat/${item.id}.jpg`;
+                            
+                            // Extract thumbnail from medium url if possible, otherwise fallback to highRes
+                            let thumb = highRes;
+                            if (item.image_urls && item.image_urls.medium) {
+                                thumb = item.image_urls.medium.replace('i.pximg.net', 'i.pixiv.cat');
+                            }
+                            
+                            return {
+                                url: highRes,
+                                thumb: thumb,
+                                title: item.title,
+                                user: (item.user ? item.user.name : "Unknown"),
+                                link: `https://www.pixiv.net/artworks/${item.id}`
+                            };
+                        })
                         .filter(item => !pixivBlacklist.has(item.url));
                     
                     allRankings = allRankings.concat(filtered);
@@ -95,6 +139,7 @@ async function fetchPixivRanking() {
             pixivCurrentIndex = 0;
             appendLog(`[PIXIV] Successfully loaded ${pixivRankings.length} wallpapers.`);
             applyPixivBackground();
+            savePixivState(); // Persist to Python
         } else {
             fetchAlternativeRanking();
         }
@@ -117,9 +162,11 @@ function fetchAlternativeRanking() {
                 let horizontalFallback = data.data
                     .filter(item => item.width > item.height)
                     .map(item => {
-                        const originalUrl = item.urls.original || item.urls.regular || "";
+                        const originalUrl = (item.urls.original || item.urls.regular || "").replace('i.pximg.net', 'i.pixiv.cat');
+                        const thumbUrl = (item.urls.small || item.urls.thumb || originalUrl).replace('i.pximg.net', 'i.pixiv.cat');
                         return {
-                            url: originalUrl.replace('i.pximg.net', 'i.pixiv.cat'),
+                            url: originalUrl,
+                            thumb: thumbUrl,
                             title: item.title,
                             user: item.author,
                             link: `https://www.pixiv.net/artworks/${item.pid}`
@@ -133,6 +180,7 @@ function fetchAlternativeRanking() {
                     pixivCurrentIndex = 0;
                     applyPixivBackground();
                     appendLog(`[PIXIV] Fallback successful: Found ${pixivRankings.length} images.`);
+                    savePixivState();
                 } else {
                     appendLog("[PIXIV] Fallback returned no horizontal images.");
                 }
@@ -181,6 +229,7 @@ function applyPixivBackground() {
     document.body.style.backgroundImage = 'none';
 
     appendLog(`[PIXIV] Applied: ${illust.title} by ${illust.user}`);
+    savePixivState(); // Update index in Python
 }
 
 function updatePixivDim() {
@@ -259,7 +308,7 @@ function renderPixivGallery() {
         const item = document.createElement('div');
         item.className = 'gallery-item' + (index === pixivCurrentIndex ? ' active' : '');
         item.innerHTML = `
-            <img src="${illust.url}" loading="lazy">
+            <img src="${illust.thumb}" loading="lazy">
             <div class="gallery-remove-btn">X</div>
             <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); padding: 2px 5px; font-size: 9px;" class="white col">
                 ${illust.title}
@@ -328,3 +377,13 @@ if (btnCloseGallery) {
         widgetGallery.style.display = 'none';
     });
 }
+
+// --- Initialization ---
+(async () => {
+    // Try to restore from Python first for instant display
+    const restored = await loadPixivState();
+    if (!restored && window.pixivEnabled) {
+        // Only fetch if nothing to restore
+        fetchPixivRanking();
+    }
+})();
