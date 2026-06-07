@@ -33,11 +33,11 @@ async function savePixivState() {
 async function loadPixivState() {
     try {
         console.log("[PIXIV] Attempting to load state from Python...");
-        const response = await fetch('http://127.0.0.1:25555/media/pixiv_load');
+        const response = await fetch('http://127.0.0.1:25555/specs');
         const state = await response.json();
         if (state && state.rankings && state.rankings.length > 0) {
             pixivRankings = state.rankings;
-            pixivCurrentIndex = state.index;
+            pixivCurrentIndex = state.pixiv_index;
             console.log(`[PIXIV] Restored ${pixivRankings.length} wallpapers.`);
             appendLog(`[PIXIV] Restored ${pixivRankings.length} wallpapers from Python.`);
             applyPixivBackground();
@@ -98,7 +98,8 @@ async function fetchPixivRanking() {
                         .filter(item => (item.width / item.height) >= 0.9)
                         .filter(item => {
                             // Tag Blacklist: Filter out manga, multi-page sets, etc.
-                            const excludedTags = ["漫画", "manga", "comic", "コミック", "COMIC"];
+                            const excludedTags = ["漫画", "manga", "comic", "コミック", "COMIC", 
+                                "horror", "atypical appearance"];
                             if (item.tags && Array.isArray(item.tags)) {
                                 const hasExcluded = item.tags.some(t => 
                                     excludedTags.includes(t.name) || 

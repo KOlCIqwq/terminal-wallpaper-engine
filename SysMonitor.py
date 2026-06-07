@@ -56,7 +56,7 @@ system_state = {
     "media_duration": 0,
     "sys_volume": 0,
     "sys_log": "Initializing monitor...",
-    "conv_progress": -1,
+    "conv_progress": -1, # video convertion progress
     "pixiv_rankings": [],
     "pixiv_index": 0
 }
