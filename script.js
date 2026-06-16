@@ -298,6 +298,8 @@ function fetchSystemSpecs() {
                     if (data.conv_progress === 100 && pendingWebmPath) {
                         const pathToApply = pendingWebmPath;
                         pendingWebmPath = null;
+                        // Save the WebM path so we don't re-convert on next boot
+                        localStorage.setItem('custom_bg_path', pathToApply);
                         setTimeout(() => applyCustomBackground(pathToApply), 500);
                     }
                 }
@@ -1629,10 +1631,19 @@ function applyCustomBackground(path) {
     }
 }
 
-// Auto-load custom BG if saved
-const savedBg = localStorage.getItem('custom_bg_path');
-if (savedBg) {
-    setTimeout(() => {
+// Auto-load custom BG if saved, but wait for Python server to be ready
+function checkServerAndLoad() {
+    const savedBg = localStorage.getItem('custom_bg_path');
+    if (!savedBg) return;
+
+    if (isPythonServerRunning) {
+        console.log("[STARTUP] Server ready, applying saved background...");
         if (!window.pixivEnabled) applyCustomBackground(savedBg);
-    }, 1000);
+    } else {
+        // Server not ready yet, check again in 1 second
+        console.log("[STARTUP] Waiting for Python server...");
+        setTimeout(checkServerAndLoad, 1000);
+    }
 }
+
+checkServerAndLoad();

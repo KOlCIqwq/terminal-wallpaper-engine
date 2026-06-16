@@ -263,6 +263,13 @@ body {
 }
 
 /* --- BACKGROUND LAYERS --- */
+#bg-layer-video {
+    object-fit: cover;
+    will-change: transform;
+    backface-visibility: hidden;
+    transform: translateZ(0); /* Force GPU compositing layer */
+}
+
 #bg-layer-image, #bg-layer-video, #bg-layer-overlay {
     position: fixed;
     top: 0;
@@ -395,8 +402,37 @@ body {
     transition: opacity 0.2s;
 }
 
-.gallery-item:hover .gallery-remove-btn {
+.gallery-fav-btn {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #888;
+    width: 18px;
+    height: 18px;
+    line-height: 18px;
+    text-align: center;
+    font-size: 12px;
+    border-radius: 2px;
+    cursor: pointer;
+    z-index: 10;
+    opacity: 0;
+    transition: all 0.2s;
+}
+
+.gallery-item:hover .gallery-remove-btn,
+.gallery-item:hover .gallery-fav-btn {
     opacity: 1;
+}
+
+.gallery-fav-btn.is-fav {
+    color: #e06c75;
+    background: rgba(255, 255, 255, 0.1);
+    opacity: 1;
+}
+
+.gallery-fav-btn:hover {
+    transform: scale(1.2);
 }
 
 .gallery-remove-btn:hover {

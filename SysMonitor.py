@@ -58,7 +58,8 @@ system_state = {
     "sys_log": "Initializing monitor...",
     "conv_progress": -1, # video convertion progress
     "pixiv_rankings": [],
-    "pixiv_index": 0
+    "pixiv_index": 0,
+    "pixiv_favorites": []
 }
 
 PORT = 25555
@@ -388,6 +389,21 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 self.send_response(500)
                 self.end_headers()
+        elif parsed_path.path == '/media/pixiv_fav_save':
+            try:
+                length = int(self.headers.get('Content-Length', 0))
+                post_data = self.rfile.read(length)
+                data = json.loads(post_data)
+                if 'favorites' in data: system_state['pixiv_favorites'] = data['favorites']
+                self.send_response(200)
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({'status': 'success'}).encode())
+                print(f"PIXIV FAVORITES SAVED: {len(system_state['pixiv_favorites'])} items")
+            except Exception as e:
+                self.send_response(500)
+                self.end_headers()
         else:
             self.send_response(404)
             self.end_headers()
@@ -413,6 +429,14 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             state = {'rankings': system_state['pixiv_rankings'], 'index': system_state['pixiv_index']}
+            self.wfile.write(json.dumps(state).encode())
+            
+        elif parsed_path.path == '/media/pixiv_fav_load':
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            state = {'favorites': system_state['pixiv_favorites']}
             self.wfile.write(json.dumps(state).encode())
             
         elif parsed_path.path == '/media/playpause':
@@ -466,7 +490,8 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                             dur_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', i]
                             res = subprocess.run(dur_cmd, capture_output=True, text=True)
                             total = float(res.stdout.strip()) if res.returncode == 0 else 0
-                            cmd = ['ffmpeg', '-y', '-i', i, '-c:v', 'libvpx', '-crf', '4', '-b:v', '12M', '-deadline', 'realtime', '-cpu-used', '4', '-c:a', 'libvorbis', o]
+                            # High-Fidelity VP9 Encoding (Slower but eliminates blockiness/pixels)
+                            cmd = ['ffmpeg', '-y', '-i', i, '-c:v', 'libvpx', '-crf', '10', '-b:v', '6M', '-deadline', 'realtime', '-cpu-used', '4', '-c:a', 'libvorbis', o]
                             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, universal_newlines=True)
                             for line in proc.stdout:
                                 m = re.search(r"time=(\d+):(\d+):(\d+.\d+)", line)
@@ -517,13 +542,14 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_header('Content-type', mime)
                     self.send_header('Accept-Ranges', 'bytes')
                     self.send_header('Content-Length', str(cs))
+                    self.send_header('Cache-Control', 'public, max-age=3600')
                     if status == 206: self.send_header('Content-Range', f'bytes {s}-{e}/{size}')
                     self.end_headers()
                     try:
                         with open(fp, 'rb') as f:
                             f.seek(s); rem = cs
                             while rem > 0:
-                                chunk = f.read(min(rem, 64 * 1024))
+                                chunk = f.read(min(rem, 512 * 1024))
                                 if not chunk: break
                                 self.wfile.write(chunk); rem -= len(chunk)
                     except: pass

@@ -7,14 +7,41 @@ let pixivShuffle = false;
 let isPixivLoading = false;
 let lastPixivAction = Date.now();
 let pixivManualMode = false;
+let favModeActive = localStorage.getItem('pixiv_fav_mode') === 'true';
 
 // Load Blacklist from localStorage
 let pixivBlacklist = new Set(JSON.parse(localStorage.getItem('pixiv_blacklist') || "[]"));
+let pixivFavorites = [];
 
 function saveBlacklist() {
     localStorage.setItem('pixiv_blacklist', JSON.stringify(Array.from(pixivBlacklist)));
 }
 
+// --- Favorites Persistence ---
+async function saveFavoritesToPython() {
+    try {
+        await fetch('http://127.0.0.1:25555/media/pixiv_fav_save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ favorites: pixivFavorites })
+        });
+    } catch (e) { console.log("Fav save failed", e); }
+}
+
+async function loadFavoritesFromPython() {
+    try {
+        const response = await fetch('http://127.0.0.1:25555/media/pixiv_fav_load');
+        const state = await response.json();
+        if (state && state.favorites) {
+            pixivFavorites = state.favorites;
+            console.log(`[PIXIV] Loaded ${pixivFavorites.length} favorites from Python.`);
+            return true;
+        }
+    } catch (e) { console.log("Fav load failed", e); }
+    return false;
+}
+
+// --- State Persistence to Python ---
 async function savePixivState() {
     if (!window.pixivEnabled || pixivRankings.length === 0) return;
     try {
@@ -257,10 +284,51 @@ function updatePixivDim() {
 }
 
 function nextPixivWallpaper() {
-    if (!window.pixivEnabled || pixivRankings.length === 0) return;
-    pixivCurrentIndex = (pixivCurrentIndex + 1) % pixivRankings.length;
-    applyPixivBackground();
+    if (!window.pixivEnabled) return;
+    
+    if (favModeActive && pixivFavorites.length > 0) {
+        pixivCurrentIndex = (pixivCurrentIndex + 1) % pixivFavorites.length;
+        applySpecificBackground(pixivFavorites[pixivCurrentIndex]);
+    } else if (pixivRankings.length > 0) {
+        pixivCurrentIndex = (pixivCurrentIndex + 1) % pixivRankings.length;
+        applyPixivBackground();
+    }
     lastPixivAction = Date.now();
+}
+
+function applySpecificBackground(illust) {
+    if (!illust) return;
+    const imageUrl = illust.url;
+    const imageLayer = document.getElementById('bg-layer-image');
+    if (imageLayer) {
+        imageLayer.style.backgroundImage = `url('${imageUrl}')`;
+        imageLayer.style.display = 'block';
+    }
+    updatePixivDim();
+    document.body.style.backgroundImage = 'none';
+    appendLog(`[FAVORITE] Applied: ${illust.title}`);
+}
+
+const toggleFavMode = document.getElementById('toggle-fav-mode');
+if (toggleFavMode) {
+    toggleFavMode.onclick = () => {
+        favModeActive = !favModeActive;
+        localStorage.setItem('pixiv_fav_mode', favModeActive);
+        toggleFavMode.textContent = favModeActive ? "[ ENABLED ]" : "[ DISABLED ]";
+        
+        if (favModeActive && pixivFavorites.length > 0) {
+            pixivCurrentIndex = 0;
+            applySpecificBackground(pixivFavorites[0]);
+        } else {
+            if (typeof refreshBackground === 'function') refreshBackground();
+        }
+        
+        if (document.getElementById('widget-pixiv-gallery').style.display !== 'none') {
+            renderPixivGallery();
+        }
+    };
+    // Sync label on load
+    toggleFavMode.textContent = favModeActive ? "[ ENABLED ]" : "[ DISABLED ]";
 }
 
 function updatePixivUI() {
@@ -329,12 +397,20 @@ function renderPixivGallery() {
     if (!grid) return;
     
     grid.innerHTML = '';
-    pixivRankings.forEach((illust, index) => {
+    
+    // Determine which list to show in gallery
+    const displayList = favModeActive ? pixivFavorites : pixivRankings;
+
+    displayList.forEach((illust, index) => {
+        const isFav = pixivFavorites.some(f => f.url === illust.url);
         const item = document.createElement('div');
-        item.className = 'gallery-item' + (index === pixivCurrentIndex ? ' active' : '');
+        const activeUrl = document.getElementById('bg-layer-image').style.backgroundImage.replace(/url\(['"](.+)['"]\)/, '$1');
+        item.className = 'gallery-item' + (illust.url === activeUrl ? ' active' : '');
+        
         item.innerHTML = `
             <img src="${illust.thumb}" loading="lazy">
             <div class="gallery-remove-btn">X</div>
+            <div class="gallery-fav-btn ${isFav ? 'is-fav' : ''}">${isFav ? '♥' : '♡'}</div>
             <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); padding: 2px 5px; font-size: 9px;" class="white col">
                 ${illust.title}
             </div>
@@ -345,7 +421,26 @@ function renderPixivGallery() {
             e.stopPropagation();
             pixivCurrentIndex = index;
             pixivManualMode = true;
-            applyPixivBackground();
+            
+            if (favModeActive) {
+                applySpecificBackground(illust);
+            } else {
+                applyPixivBackground();
+            }
+            renderPixivGallery();
+        };
+
+        // Favorite Toggle
+        const favBtn = item.querySelector('.gallery-fav-btn');
+        favBtn.onclick = (e) => {
+            e.stopPropagation();
+            const existingIndex = pixivFavorites.findIndex(f => f.url === illust.url);
+            if (existingIndex > -1) {
+                pixivFavorites.splice(existingIndex, 1);
+            } else {
+                pixivFavorites.push(illust);
+            }
+            saveFavoritesToPython();
             renderPixivGallery();
         };
 
@@ -357,17 +452,11 @@ function renderPixivGallery() {
             pixivBlacklist.add(urlToRemove);
             saveBlacklist();
             
-            appendLog(`[PIXIV] Blacklisted: ${illust.title}`);
-            
-            // Filter current array
-            pixivRankings = pixivRankings.filter(item => item.url !== urlToRemove);
-            
-            if (pixivCurrentIndex >= index) {
-                pixivCurrentIndex = Math.max(0, pixivCurrentIndex - 1);
-            }
-
-            if (illust.url === document.getElementById('bg-layer-image').style.backgroundImage.replace(/url\(['"](.+)['"]\)/, '$1')) {
-                nextPixivWallpaper();
+            if (favModeActive) {
+                pixivFavorites = pixivFavorites.filter(f => f.url !== urlToRemove);
+                saveFavoritesToPython();
+            } else {
+                pixivRankings = pixivRankings.filter(item => item.url !== urlToRemove);
             }
 
             renderPixivGallery();
@@ -405,6 +494,9 @@ if (btnCloseGallery) {
 
 // --- Initialization ---
 (async () => {
+    // Load favorites first
+    await loadFavoritesFromPython();
+    
     // Try to restore from Python first for instant display
     const restored = await loadPixivState();
     if (!restored && window.pixivEnabled) {
