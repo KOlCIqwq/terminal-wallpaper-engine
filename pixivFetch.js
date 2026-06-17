@@ -60,14 +60,19 @@ async function savePixivState() {
 async function loadPixivState() {
     try {
         console.log("[PIXIV] Attempting to load state from Python...");
-        const response = await fetch('http://127.0.0.1:25555/specs');
+        const response = await fetch('http://127.0.0.1:25555/media/pixiv_load');
         const state = await response.json();
         if (state && state.rankings && state.rankings.length > 0) {
             pixivRankings = state.rankings;
-            pixivCurrentIndex = state.pixiv_index;
+            pixivCurrentIndex = state.index || 0;
             console.log(`[PIXIV] Restored ${pixivRankings.length} wallpapers.`);
             appendLog(`[PIXIV] Restored ${pixivRankings.length} wallpapers from Python.`);
-            applyPixivBackground();
+            
+            // If in favorites mode, we might want to prioritize those, 
+            // but for now just apply what we restored.
+            if (!favModeActive) {
+                applyPixivBackground();
+            }
             return true;
         }
     } catch (e) { console.log("State load failed", e); }
@@ -435,11 +440,25 @@ function renderPixivGallery() {
         favBtn.onclick = (e) => {
             e.stopPropagation();
             const existingIndex = pixivFavorites.findIndex(f => f.url === illust.url);
+            const isActive = illust.url === activeUrl;
+
             if (existingIndex > -1) {
+                // Remove from favorites
                 pixivFavorites.splice(existingIndex, 1);
+                
+                // If we are in Favs Mode and just removed the active background, cycle to next
+                if (favModeActive && isActive) {
+                    if (pixivFavorites.length > 0) {
+                        nextPixivWallpaper();
+                    } else {
+                        refreshBackground(); // Go back to default if no favs left
+                    }
+                }
             } else {
+                // Add to favorites
                 pixivFavorites.push(illust);
             }
+            
             saveFavoritesToPython();
             renderPixivGallery();
         };

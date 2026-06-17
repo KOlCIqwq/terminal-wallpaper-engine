@@ -37,6 +37,25 @@ if sys.stdout is None:
 if sys.stderr is None:
     sys.stderr = open(os.devnull, 'w')
 
+FAV_FILE = "favorites.json"
+STATE_FILE = "pixiv_state.json"
+
+def save_to_file(filename, data):
+    try:
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"Error saving {filename}: {e}")
+
+def load_from_file(filename, default):
+    if os.path.exists(filename):
+        try:
+            with open(filename, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading {filename}: {e}")
+    return default
+
 system_state = {
     "os": "Loading...",
     "cpu_name": "Loading...",
@@ -56,10 +75,10 @@ system_state = {
     "media_duration": 0,
     "sys_volume": 0,
     "sys_log": "Initializing monitor...",
-    "conv_progress": -1, # video convertion progress
-    "pixiv_rankings": [],
-    "pixiv_index": 0,
-    "pixiv_favorites": []
+    "conv_progress": -1,
+    "pixiv_rankings": load_from_file(STATE_FILE, {}).get('rankings', []),
+    "pixiv_index": load_from_file(STATE_FILE, {}).get('index', 0),
+    "pixiv_favorites": load_from_file(FAV_FILE, [])
 }
 
 PORT = 25555
@@ -380,12 +399,16 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                 data = json.loads(post_data)
                 if 'rankings' in data: system_state['pixiv_rankings'] = data['rankings']
                 if 'index' in data: system_state['pixiv_index'] = data['index']
+                
+                # Permanent save to disk
+                save_to_file(STATE_FILE, {'rankings': system_state['pixiv_rankings'], 'index': system_state['pixiv_index']})
+
                 self.send_response(200)
                 self.send_header('Access-Control-Allow-Origin', '*')
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
                 self.wfile.write(json.dumps({'status': 'success'}).encode())
-                print(f"PIXIV STATE SAVED: {len(system_state['pixiv_rankings'])} items")
+                print(f"PIXIV STATE SAVED TO DISK: {len(system_state['pixiv_rankings'])} items")
             except Exception as e:
                 self.send_response(500)
                 self.end_headers()
@@ -395,12 +418,16 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                 post_data = self.rfile.read(length)
                 data = json.loads(post_data)
                 if 'favorites' in data: system_state['pixiv_favorites'] = data['favorites']
+
+                # Permanent save to disk
+                save_to_file(FAV_FILE, system_state['pixiv_favorites'])
+
                 self.send_response(200)
                 self.send_header('Access-Control-Allow-Origin', '*')
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
                 self.wfile.write(json.dumps({'status': 'success'}).encode())
-                print(f"PIXIV FAVORITES SAVED: {len(system_state['pixiv_favorites'])} items")
+                print(f"PIXIV FAVORITES SAVED TO DISK: {len(system_state['pixiv_favorites'])} items")
             except Exception as e:
                 self.send_response(500)
                 self.end_headers()
