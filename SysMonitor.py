@@ -509,16 +509,19 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
             if 'path' in q:
                 inp = q['path'][0].strip('"').replace('\\', '/')
                 if os.path.exists(inp):
-                    outp = inp.rsplit('.', 1)[0] + '.webm'
-                    system_state['sys_log'] = f"Converting..."
+                    # Save directly into project folder for stability
+                    outp = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'background.webm').replace('\\', '/')
+                    system_state['sys_log'] = f"Converting to local storage..."
                     def do_convert(i, o):
                         import subprocess, re
                         try:
                             dur_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', i]
                             res = subprocess.run(dur_cmd, capture_output=True, text=True)
                             total = float(res.stdout.strip()) if res.returncode == 0 else 0
-                            # High-Fidelity VP9 Encoding (Slower but eliminates blockiness/pixels)
-                            cmd = ['ffmpeg', '-y', '-i', i, '-c:v', 'libvpx', '-crf', '10', '-b:v', '6M', '-deadline', 'realtime', '-cpu-used', '4', '-c:a', 'libvorbis', o]
+                            
+                            # Performance Profile: 30FPS, Realtime deadline, and lighter bitrate (3M)
+                            # This ensures the video is extremely easy for the browser to decode in the background.
+                            cmd = ['ffmpeg', '-y', '-i', i, '-r', '30', '-c:v', 'libvpx', '-crf', '15', '-b:v', '3M', '-deadline', 'realtime', '-cpu-used', '5', '-g', '120', '-c:a', 'libvorbis', o]
                             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, universal_newlines=True)
                             for line in proc.stdout:
                                 m = re.search(r"time=(\d+):(\d+):(\d+.\d+)", line)
@@ -528,6 +531,7 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                             proc.wait()
                             if proc.returncode == 0:
                                 system_state['conv_progress'] = 100
+                                print("LOCAL VIDEO READY: background.webm")
                                 time.sleep(5)
                         except: pass
                         finally: system_state['conv_progress'] = -1

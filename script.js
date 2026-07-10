@@ -624,7 +624,9 @@ window.myPropertyHandlers.push(function(properties) {
             videoLayer.style.display = 'block';
             videoLayer.muted = true;
             videoLayer.loop = true;
-            videoLayer.play().catch(err => console.log("Video Play Error:", err));
+            if (videoLayer.paused) {
+                videoLayer.play().catch(err => console.log("Video Play Error:", err));
+            }
         } else {
             videoLayer.style.display = 'none';
             videoLayer.pause();
@@ -1579,47 +1581,52 @@ function applyCustomBackground(path) {
     const overlayLayer = document.getElementById('bg-layer-overlay');
     const isVideo = path.match(/\.(mp4|webm|ogg|mov|avi|mkv)$/i);
     const isMp4 = path.match(/\.(mp4|mov|m4v|avi|mkv)$/i);
-    const proxyUrl = `http://127.0.0.1:25555/video_proxy?path=${encodeURIComponent(path)}&t=${Date.now()}`;
+    
+    // If it's the local background.webm, load it directly with cache buster
+    const isLocal = path === 'background.webm';
+    const finalUrl = isLocal ? (path + '?t=' + Date.now()) : `http://127.0.0.1:25555/video_proxy?path=${encodeURIComponent(path)}&t=${Date.now()}`;
 
     document.body.style.backgroundColor = 'transparent';
     document.body.style.backgroundImage = 'none';
 
     if (isVideo) {
         if (isMp4) {
-            appendLog("[BROWSER] MP4 detected. Starting auto-conversion to WebM...");
-            const webmPath = path.rsplit ? path.rsplit('.', 1)[0] + '.webm' : path.substring(0, path.lastIndexOf('.')) + '.webm';
-            pendingWebmPath = webmPath;
+            appendLog("[BROWSER] MP4 detected. Starting auto-conversion to Local WebM...");
+            pendingWebmPath = 'background.webm';
             fetch(`http://127.0.0.1:25555/media/convert?path=${encodeURIComponent(path)}`).catch(e => console.log(e));
             return; 
         }
         if (imageLayer) imageLayer.style.display = 'none';
-        videoLayer.pause();
-        videoLayer.src = "";
-        videoLayer.load();
-        videoLayer.style.display = 'block';
         
-        /* videoLayer.oncanplay = () => {
-            appendLog("[BROWSER] Handshake success.");
-            videoLayer.play().catch(e => appendLog(`[BROWSER] Play fail: ${e.message}`));
-        }; */
-        /* videoLayer.onplaying = () => appendLog(`[BROWSER] Video Active: ${path.split('\\').pop()}`); */
+        videoLayer.pause();
+        videoLayer.removeAttribute('src');
+        videoLayer.load();
+        
+        videoLayer.style.display = 'block';
+        videoLayer.src = finalUrl;
+        
+        videoLayer.oncanplay = () => {
+            videoLayer.play().catch(e => console.log("Play Error:", e));
+        };
+
         videoLayer.onerror = () => {
             const err = videoLayer.error;
             let msg = `[BROWSER] Video Error: ${err ? err.code : 'unknown'}`;
             if (err && err.code === 4) {
-                msg += " (Codec unsupported. Convert to WebM!)";
+                msg += " (Incompatible codec or file busy. Try converting again!)";
             }
             appendLog(msg);
         };
-        
-        videoLayer.src = proxyUrl;
     } else {
+        // IMAGE MODE
         if (videoLayer) {
             videoLayer.style.display = 'none';
-            videoLayer.src = "";
+            videoLayer.pause();
+            videoLayer.removeAttribute('src');
+            videoLayer.load();
         }
         if (imageLayer) {
-            imageLayer.style.backgroundImage = `url('${proxyUrl}')`;
+            imageLayer.style.backgroundImage = `url('${finalUrl}')`;
             imageLayer.style.display = 'block';
             appendLog(`[BROWSER] Image Applied: ${path.split('\\').pop()}`);
         }
@@ -1633,17 +1640,37 @@ function applyCustomBackground(path) {
 
 // Auto-load custom BG if saved, but wait for Python server to be ready
 function checkServerAndLoad() {
-    const savedBg = localStorage.getItem('custom_bg_path');
-    if (!savedBg) return;
+    // First, check if a local background.webm exists (highest priority/stability)
+    const localWebmPath = 'background.webm';
+    
+    // Check for existence using a simple fetch
+    fetch(localWebmPath, { method: 'HEAD' })
+        .then(res => {
+            if (res.ok) {
+                console.log("[STARTUP] Local background.webm found, playing...");
+                if (!window.pixivEnabled) applyCustomBackground(localWebmPath);
+            } else {
+                // No local file, fall back to saved path from Python
+                const savedBg = localStorage.getItem('custom_bg_path');
+                if (!savedBg) return;
 
-    if (isPythonServerRunning) {
-        console.log("[STARTUP] Server ready, applying saved background...");
-        if (!window.pixivEnabled) applyCustomBackground(savedBg);
-    } else {
-        // Server not ready yet, check again in 1 second
-        console.log("[STARTUP] Waiting for Python server...");
-        setTimeout(checkServerAndLoad, 1000);
-    }
+                if (isPythonServerRunning) {
+                    console.log("[STARTUP] Server ready, applying saved background...");
+                    if (!window.pixivEnabled) applyCustomBackground(savedBg);
+                } else {
+                    setTimeout(checkServerAndLoad, 1000);
+                }
+            }
+        })
+        .catch(() => {
+            // Fetch error likely means no file, proceed to secondary fallback
+            const savedBg = localStorage.getItem('custom_bg_path');
+            if (savedBg && isPythonServerRunning) {
+                if (!window.pixivEnabled) applyCustomBackground(savedBg);
+            } else if (savedBg) {
+                setTimeout(checkServerAndLoad, 1000);
+            }
+        });
 }
 
 checkServerAndLoad();

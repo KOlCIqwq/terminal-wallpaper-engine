@@ -104,17 +104,16 @@ async function fetchPixivRanking() {
     appendLog("[PIXIV] Fetching...");
 
     let allRankings = [];
-    // User confirmed working endpoint
     const baseUrl = "https://hibi.yunzai-bot.com/api/pixiv/rank";
 
     try {
-        // Fetch 2 pages with size 50 each
+        // Fetch 2 pages with size 30 each
         for (let p = 1; p <= 3; p++) {
             try {
                 // Add a small delay between requests to prevent 429 (Too Many Requests)
                 if (p > 1) await new Promise(r => setTimeout(r, 1500));
 
-                const fetchUrl = `${baseUrl}?mode=day&page=${p}&size=50`;
+                const fetchUrl = `${baseUrl}?mode=day&page=${p}`;
                 const response = await fetch(fetchUrl);
                 
                 if (!response.ok) {
