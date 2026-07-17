@@ -218,6 +218,11 @@ function initRadarMap(lon, lat) {
             const past = data.radar.past;
             if (past && past.length > 0) {
                 const latest = past[past.length - 1].path;
+                
+                if (radarLayer) {
+                    radarLeafletMap.removeLayer(radarLayer);
+                }
+
                 radarLayer = L.tileLayer(`https://tilecache.rainviewer.com${latest}/256/{z}/{x}/{y}/2/1_1.png`, {
                     opacity: 0.7,
                     maxZoom: 18
