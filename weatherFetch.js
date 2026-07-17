@@ -15,6 +15,14 @@ window.myPropertyHandlers.push(function(properties) {
         redrawNeeded = true;
     }
 
+    if (properties.radar_marker_color) {
+        let colors = properties.radar_marker_color.value.split(' ').map(c => Math.round(c * 255));
+        radarMarkerColor = `rgb(${colors[0]}, ${colors[1]}, ${colors[2]})`;
+        if (typeof radarMarker !== 'undefined' && radarMarker) {
+            radarMarker.setStyle({ fillColor: radarMarkerColor, color: radarMarkerColor });
+        }
+    }
+
     if (redrawNeeded) {
         let lon = (typeof position !== 'undefined' && position.lon !== null) ? position.lon : 12.4964;
         let lat = (typeof position !== 'undefined' && position.lat !== null) ? position.lat : 41.9028;
@@ -169,8 +177,59 @@ function renderGlobe(userLon, userLat) {
     }
 }
 
+let radarLeafletMap = null;
+let radarLayer = null;
+let radarMarker = null;
+let radarMarkerColor = '#f03'; // Default red
+
+function initRadarMap(lon, lat) {
+    const mapDiv = document.getElementById('radar-map');
+    if (!mapDiv) return;
+    if (typeof L === 'undefined') {
+        setTimeout(() => initRadarMap(lon, lat), 500);
+        return;
+    }
+
+    if (radarLeafletMap) {
+        radarLeafletMap.setView([lat, lon], 7);
+        if (radarMarker) radarMarker.setLatLng([lat, lon]);
+    } else {
+        radarLeafletMap = L.map('radar-map', {
+            zoomControl: false,
+            attributionControl: false
+        }).setView([lat, lon], 7);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 18,
+        }).addTo(radarLeafletMap);
+
+        radarMarker = L.circleMarker([lat, lon], {
+            color: radarMarkerColor,
+            fillColor: radarMarkerColor,
+            fillOpacity: 0.8,
+            radius: 6,
+            weight: 2
+        }).addTo(radarLeafletMap);
+    }
+
+    fetch('https://api.rainviewer.com/public/weather-maps.json')
+        .then(res => res.json())
+        .then(data => {
+            const past = data.radar.past;
+            if (past && past.length > 0) {
+                const latest = past[past.length - 1].path;
+                radarLayer = L.tileLayer(`https://tilecache.rainviewer.com${latest}/256/{z}/{x}/{y}/2/1_1.png`, {
+                    opacity: 0.7,
+                    maxZoom: 18
+                }).addTo(radarLeafletMap);
+            }
+        }).catch(err => console.error(err));
+}
+
 function getWeather(lon,lat){
     renderGlobe(lon, lat);
+    initRadarMap(lon, lat);
+
     const params = new URLSearchParams({
         latitude: lat,
         longitude: lon,
