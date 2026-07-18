@@ -19,6 +19,7 @@ function saveBlacklist() {
 
 // --- Favorites Persistence ---
 async function saveFavoritesToPython() {
+    localStorage.setItem('pixiv_favorites', JSON.stringify(pixivFavorites));
     try {
         await fetch('http://127.0.0.1:25555/media/pixiv_fav_save', {
             method: 'POST',
@@ -29,16 +30,27 @@ async function saveFavoritesToPython() {
 }
 
 async function loadFavoritesFromPython() {
+    let loadedLocal = false;
+    try {
+        const stored = localStorage.getItem('pixiv_favorites');
+        if (stored) {
+            pixivFavorites = JSON.parse(stored);
+            console.log(`[PIXIV] Loaded ${pixivFavorites.length} favorites from localStorage.`);
+            loadedLocal = true;
+        }
+    } catch (e) { console.log("Local fav load failed", e); }
+
     try {
         const response = await fetch('http://127.0.0.1:25555/media/pixiv_fav_load');
         const state = await response.json();
-        if (state && state.favorites) {
+        if (state && state.favorites && state.favorites.length >= pixivFavorites.length) {
             pixivFavorites = state.favorites;
             console.log(`[PIXIV] Loaded ${pixivFavorites.length} favorites from Python.`);
+            localStorage.setItem('pixiv_favorites', JSON.stringify(pixivFavorites));
             return true;
         }
     } catch (e) { console.log("Fav load failed", e); }
-    return false;
+    return loadedLocal;
 }
 
 // --- State Persistence to Python ---

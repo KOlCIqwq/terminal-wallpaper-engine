@@ -452,3 +452,15 @@ function parseWeather(code) {
 
     return wwMap[code] || { desc: "Unknown", icon: "❓" };
 }
+
+const btnRetryRadar = document.getElementById('btn-retry-radar');
+if (btnRetryRadar) {
+    btnRetryRadar.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent widget from being dragged/interacted with
+        if (typeof position !== 'undefined' && position.lon !== null && position.lat !== null) {
+            btnRetryRadar.style.opacity = '0.5';
+            initRadarMap(position.lon, position.lat);
+            setTimeout(() => { btnRetryRadar.style.opacity = '1'; }, 1000);
+        }
+    });
+}
