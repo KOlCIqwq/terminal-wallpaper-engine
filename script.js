@@ -568,6 +568,7 @@ window.myPropertyHandlers.push(function(properties) {
     toggleWidget(properties.show_lyrics, 'widget-lyrics');
     toggleWidget(properties.show_map, 'widget-map');
     toggleWidget(properties.show_logs, 'widget-logs');
+    toggleWidget(properties.show_radar_map, 'widget-weather-radar');
 
     // bg
     if (properties.bg_type !== undefined) {
