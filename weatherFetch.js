@@ -464,3 +464,15 @@ if (btnRetryRadar) {
         }
     });
 }
+
+const btnCenterRadar = document.getElementById('btn-center-radar');
+if (btnCenterRadar) {
+    btnCenterRadar.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent widget drag
+        if (radarLeafletMap && typeof position !== 'undefined' && position.lon !== null && position.lat !== null) {
+            btnCenterRadar.style.opacity = '0.5';
+            radarLeafletMap.setView([position.lat, position.lon], 7);
+            setTimeout(() => { btnCenterRadar.style.opacity = '1'; }, 1000);
+        }
+    });
+}
