@@ -151,7 +151,7 @@ async function fetchPixivRanking() {
                                 if (hasExcluded) return false;
                             }
                             // Also filter out multi-page illustrations which are often manga
-                            /* if (item.page_count && item.page_count > 1) return false; */
+                            if (item.page_count && item.page_count >= 3) return false;
                             return true;
                         })
                         .map(item => {
