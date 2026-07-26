@@ -455,7 +455,7 @@ body {
     width: 100%;
     height: 2px;
     cursor: pointer;
-    background: #555555;
+    background: repeating-linear-gradient(to right, #555555 0, #555555 3px, transparent 3px, transparent 6px);
     border-radius: 0;
 }
 

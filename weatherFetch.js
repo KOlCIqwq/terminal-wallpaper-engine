@@ -223,6 +223,12 @@ function initRadarMap(lon, lat) {
                     timeline.value = radarPastFrames.length - 1; // Default to latest (Live)
                     
                     timeline.oninput = function() {
+                        if (typeof radarPlaybackInterval !== 'undefined' && radarPlaybackInterval) {
+                            clearInterval(radarPlaybackInterval);
+                            radarPlaybackInterval = null;
+                            const btn = document.getElementById('radar-play-btn');
+                            if (btn) btn.textContent = "[ ▶ ]";
+                        }
                         updateRadarLayer(this.value);
                     };
                 }
@@ -498,6 +504,42 @@ if (btnCenterRadar) {
             btnCenterRadar.style.opacity = '0.5';
             radarLeafletMap.setView([position.lat, position.lon], 7);
             setTimeout(() => { btnCenterRadar.style.opacity = '1'; }, 1000);
+        }
+    });
+}
+
+let radarPlaybackInterval = null;
+const btnPlayRadar = document.getElementById('radar-play-btn');
+if (btnPlayRadar) {
+    btnPlayRadar.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const timeline = document.getElementById('radar-timeline');
+        if (!timeline || radarPastFrames.length === 0) return;
+
+        if (radarPlaybackInterval) {
+            // Pause
+            clearInterval(radarPlaybackInterval);
+            radarPlaybackInterval = null;
+            btnPlayRadar.textContent = "[ ▶ ]";
+        } else {
+            // Play
+            if (parseInt(timeline.value) === parseInt(timeline.max)) {
+                timeline.value = 0;
+                updateRadarLayer(0);
+            }
+            
+            btnPlayRadar.textContent = "[ ⏸ ]";
+            radarPlaybackInterval = setInterval(() => {
+                let nextVal = parseInt(timeline.value) + 1;
+                if (nextVal > parseInt(timeline.max)) {
+                    clearInterval(radarPlaybackInterval);
+                    radarPlaybackInterval = null;
+                    btnPlayRadar.textContent = "[ ▶ ]";
+                    return;
+                }
+                timeline.value = nextVal;
+                updateRadarLayer(nextVal);
+            }, 1000);
         }
     });
 }
