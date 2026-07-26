@@ -418,6 +418,24 @@ window.myPropertyHandlers.push(function(properties) {
         }
     }
 
+    // Toggle Widget Titles
+    if (properties.show_widget_titles !== undefined) {
+        const visibility = properties.show_widget_titles.value ? 'visible' : 'hidden';
+        document.querySelectorAll('.title-text').forEach(el => {
+            el.style.display = ''; // Clear previous display override
+            el.style.visibility = visibility;
+        });
+    }
+
+    // Toggle Widget Separators
+    if (properties.show_widget_separators !== undefined) {
+        const visibility = properties.show_widget_separators.value ? 'visible' : 'hidden';
+        document.querySelectorAll('.divider-text').forEach(el => {
+            el.style.display = ''; // Clear previous display override
+            el.style.visibility = visibility;
+        });
+    }
+
     if (properties.username) {
         const value = properties.username.value.trim();
         overrides.username = value !== "";

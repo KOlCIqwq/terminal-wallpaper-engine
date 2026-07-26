@@ -395,6 +395,23 @@
                 "text": "Radar Marker Color",
                 "type": "color",
                 "value": "1 0 0"
+            },
+            "widget_ui_group": {
+                "order": 800,
+                "text": "Widget UI Settings",
+                "type": "group"
+            },
+            "show_widget_titles": {
+                "order": 801,
+                "text": "Show Widget Titles (e.g. RADAR.EXE)",
+                "type": "bool",
+                "value": true
+            },
+            "show_widget_separators": {
+                "order": 802,
+                "text": "Show Separator Lines (-----)",
+                "type": "bool",
+                "value": true
             }
         },
         "supportsaudioprocessing" : true

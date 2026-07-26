@@ -1,6 +1,7 @@
 const LYRICS_PLUS_ENDPOINTS = [
+    "https://lyricsplus.prjktla.my.id",
     "https://lyricsplus.prjktla.workers.dev",
-    "https://lyricsplus.binimum.org",
+    "https://lyrics.binimum.org",
     "https://lyricsplus.atomix.one",
     "https://lyricsplus-seven.vercel.app",
     "https://lyrics-plus-backend.vercel.app"
