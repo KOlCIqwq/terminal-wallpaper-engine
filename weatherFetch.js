@@ -215,20 +215,45 @@ function initRadarMap(lon, lat) {
     fetch('https://api.rainviewer.com/public/weather-maps.json')
         .then(res => res.json())
         .then(data => {
-            const past = data.radar.past;
-            if (past && past.length > 0) {
-                const latest = past[past.length - 1].path;
-                
-                if (radarLayer) {
-                    radarLeafletMap.removeLayer(radarLayer);
+            radarPastFrames = data.radar.past || [];
+            if (radarPastFrames.length > 0) {
+                const timeline = document.getElementById('radar-timeline');
+                if (timeline) {
+                    timeline.max = radarPastFrames.length - 1;
+                    timeline.value = radarPastFrames.length - 1; // Default to latest (Live)
+                    
+                    timeline.oninput = function() {
+                        updateRadarLayer(this.value);
+                    };
                 }
-
-                radarLayer = L.tileLayer(`https://tilecache.rainviewer.com${latest}/256/{z}/{x}/{y}/2/1_1.png`, {
-                    opacity: 0.7,
-                    maxZoom: 18
-                }).addTo(radarLeafletMap);
+                updateRadarLayer(radarPastFrames.length - 1);
             }
         }).catch(err => console.error(err));
+}
+
+let radarPastFrames = [];
+function updateRadarLayer(index) {
+    if (!radarPastFrames || !radarPastFrames[index]) return;
+    const frame = radarPastFrames[index];
+    
+    const label = document.getElementById('radar-time-label');
+    if (label) {
+        if (index == radarPastFrames.length - 1) {
+            label.textContent = "[ LIVE ]";
+        } else {
+            const date = new Date(frame.time * 1000);
+            label.textContent = `[ ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')} ]`;
+        }
+    }
+    
+    if (radarLayer) {
+        radarLeafletMap.removeLayer(radarLayer);
+    }
+
+    radarLayer = L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/2/1_1.png`, {
+        opacity: 0.7,
+        maxZoom: 18
+    }).addTo(radarLeafletMap);
 }
 
 function getWeather(lon,lat){
