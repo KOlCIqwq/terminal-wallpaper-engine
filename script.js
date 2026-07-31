@@ -1629,10 +1629,10 @@ if (btnSettings && widgetSettings) {
         e.stopPropagation();
         widgetSettings.style.display = widgetSettings.style.display === 'none' ? 'block' : 'none';
         
-        // Position it near the logs widget
-        const logsRect = document.getElementById('widget-logs').getBoundingClientRect();
-        widgetSettings.style.left = (logsRect.left) + "px";
-        widgetSettings.style.top = (logsRect.top - 150) + "px";
+        // Position it near the settings launcher
+        const launcherRect = document.getElementById('widget-settings-launcher').getBoundingClientRect();
+        widgetSettings.style.left = (launcherRect.left) + "px";
+        widgetSettings.style.top = (launcherRect.top + 50) + "px";
         
         // Update labels
         if (toggleBgVideo) toggleBgVideo.textContent = bgVideoEnabled ? "[ ENABLED ]" : "[ DISABLED ]";

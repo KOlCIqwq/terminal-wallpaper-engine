@@ -504,13 +504,13 @@ if (btnOpenGallery && widgetGallery) {
     btnOpenGallery.addEventListener('click', (e) => {
         e.stopPropagation();
         const isHidden = widgetGallery.style.display === 'none';
-        widgetGallery.style.display = isHidden ? 'block' : 'none';
+        widgetGallery.style.display = isHidden ? 'flex' : 'none';
         
         if (isHidden) {
             renderPixivGallery();
             // Position near settings
             const settingsRect = document.getElementById('widget-settings').getBoundingClientRect();
-            widgetGallery.style.left = (settingsRect.left - 610) + "px";
+            widgetGallery.style.left = (settingsRect.left - 460) + "px";
             widgetGallery.style.top = settingsRect.top + "px";
         }
     });
@@ -519,6 +519,24 @@ if (btnOpenGallery && widgetGallery) {
 if (btnCloseGallery) {
     btnCloseGallery.addEventListener('click', () => {
         widgetGallery.style.display = 'none';
+    });
+}
+
+const btnGalUp = document.getElementById('btn-gal-up');
+const btnGalDown = document.getElementById('btn-gal-down');
+const galleryGrid = document.getElementById('gallery-grid');
+
+if (btnGalUp && galleryGrid) {
+    btnGalUp.addEventListener('click', (e) => {
+        e.stopPropagation();
+        galleryGrid.scrollBy({ top: -200, behavior: 'smooth' });
+    });
+}
+
+if (btnGalDown && galleryGrid) {
+    btnGalDown.addEventListener('click', (e) => {
+        e.stopPropagation();
+        galleryGrid.scrollBy({ top: 200, behavior: 'smooth' });
     });
 }
 

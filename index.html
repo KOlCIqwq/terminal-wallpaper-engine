@@ -168,14 +168,13 @@
         </div>
     </div>
 
+    <div class="draggable-widget" id="widget-settings-launcher" style="padding: 8px 12px;">
+        <span id="btn-settings" class="yellow terminal-gear" style="cursor: pointer; font-size: 20px;" title="Open Settings">&#9881;&#xFE0E;</span>
+    </div>
+
     <div class="draggable-widget" id="widget-logs" style="width: 450px;">
         <div class="header-text">
             <span class="title-text">LOGS.EXE</span>
-            <div style="float: right; display: flex; gap: 5px; margin-top: -2px;">
-                <span id="btn-settings" class="yellow" style="cursor: pointer; font-size: 11px; border: 1px solid #555; padding: 0 5px;">[ SETTINGS ]</span>
-                <span id="btn-pixiv-next" class="yellow" style="cursor: pointer; font-size: 11px; border: 1px solid #555; padding: 0 5px; display: none;">[ NEXT BG ]</span>
-                <span id="btn-browse-mp4" class="yellow" style="float: right; cursor: pointer; font-size: 11px; border: 1px solid #555; padding: 0 5px;">[ SELECT BG ]</span>
-            </div>
         </div>
         <div class="divider-text divider">--------------------------------------------------------------------------------</div>
         <div id="log-list" class="white" style="font-size: 0.95em; opacity: 1.0; min-height: 160px; display: flex; flex-direction: column; justify-content: flex-end;">
@@ -188,10 +187,12 @@
         <div class="settings-content white">
             <div class="setting-item">
                 <span class="blue">BG Video:</span>
+                <span id="btn-browse-mp4" class="yellow" style="cursor: pointer; margin-right: 5px;">[ BROWSE ]</span>
                 <span id="toggle-bg-video" class="yellow" style="cursor: pointer;">[ ENABLED ]</span>
             </div>
             <div class="setting-item">
                 <span class="blue">Pixiv BG:</span>
+                <span id="btn-pixiv-next" class="yellow" style="cursor: pointer; margin-right: 5px; display: none;">[ NEXT ]</span>
                 <span id="btn-open-gallery" class="yellow" style="cursor: pointer; margin-right: 5px;">[ GALLERY ]</span>
                 <span id="toggle-pixiv-bg" class="yellow" style="cursor: pointer;">[ DISABLED ]</span>
             </div>
@@ -210,14 +211,19 @@
         </div>
     </div>
 
-    <div class="draggable-widget" id="widget-pixiv-gallery" style="display: none; width: 600px; z-index: 6000;">
-        <div class="header-text"><span class="title-text">PIXIV_GALLERY.EXE</span> <span id="btn-close-gallery" class="red" style="float: right; cursor: pointer;">[ X ]</span></div>
-        <div class="divider-text divider">----------------------------------------------------------------------------------------------------</div>
-        <div id="gallery-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 10px; max-height: 400px; overflow-y: auto;">
+    <div class="draggable-widget" id="widget-pixiv-gallery" style="display: none; width: 450px; height: 350px; z-index: 6000; flex-direction: column; resize: both; overflow: hidden; min-width: 250px; min-height: 200px; max-height: 90vh;">
+        <div class="header-text" style="flex-shrink: 0;">
+            <span class="title-text">PIXIV_GALLERY.EXE</span> 
+            <span id="btn-close-gallery" class="red" style="float: right; cursor: pointer; margin-left: 10px;">[ X ]</span>
+            <span id="btn-gal-down" class="yellow" style="float: right; cursor: pointer; margin-left: 10px;" title="Scroll Down">[ \/ ]</span>
+            <span id="btn-gal-up" class="yellow" style="float: right; cursor: pointer; margin-left: 10px;" title="Scroll Up">[ /\ ]</span>
+        </div>
+        <div class="divider-text divider" style="flex-shrink: 0;">----------------------------------------------------------------------------------------------------</div>
+        <div id="gallery-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; padding: 10px; flex-grow: 1; overflow-y: auto;">
             <!-- Thumbnails injected here -->
         </div>
-        <div class="divider-text divider">----------------------------------------------------------------------------------------------------</div>
-        <div style="padding: 5px 10px; font-size: 11px;" class="gray">
+        <div class="divider-text divider" style="flex-shrink: 0;">----------------------------------------------------------------------------------------------------</div>
+        <div style="padding: 5px 10px; font-size: 11px; flex-shrink: 0;" class="gray">
             * Click an image to set as background. Manual selection disables auto-rotation.
         </div>
     </div>
