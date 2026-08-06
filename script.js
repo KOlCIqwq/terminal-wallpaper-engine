@@ -1710,7 +1710,7 @@ const btnBgResetPos = document.getElementById('btn-bg-reset-pos');
 if (btnBgXDown) {
     btnBgXDown.addEventListener('click', (e) => {
         e.stopPropagation();
-        bgPosX = Math.max(0, bgPosX - 5);
+        bgPosX = Math.max(-500, bgPosX - 5);
         localStorage.setItem('bg_pos_x', bgPosX);
         updateBgPositionDisplay();
     });
@@ -1718,7 +1718,7 @@ if (btnBgXDown) {
 if (btnBgXUp) {
     btnBgXUp.addEventListener('click', (e) => {
         e.stopPropagation();
-        bgPosX = Math.min(100, bgPosX + 5);
+        bgPosX = Math.min(500, bgPosX + 5);
         localStorage.setItem('bg_pos_x', bgPosX);
         updateBgPositionDisplay();
     });
@@ -1726,7 +1726,7 @@ if (btnBgXUp) {
 if (btnBgYDown) {
     btnBgYDown.addEventListener('click', (e) => {
         e.stopPropagation();
-        bgPosY = Math.max(0, bgPosY - 5);
+        bgPosY = Math.max(-500, bgPosY - 5);
         localStorage.setItem('bg_pos_y', bgPosY);
         updateBgPositionDisplay();
     });
@@ -1734,7 +1734,7 @@ if (btnBgYDown) {
 if (btnBgYUp) {
     btnBgYUp.addEventListener('click', (e) => {
         e.stopPropagation();
-        bgPosY = Math.min(100, bgPosY + 5);
+        bgPosY = Math.min(500, bgPosY + 5);
         localStorage.setItem('bg_pos_y', bgPosY);
         updateBgPositionDisplay();
     });
