@@ -281,7 +281,7 @@ body {
 #bg-layer-image {
     z-index: 1;
     background-size: cover;
-    background-position: center;
+    background-position: var(--bg-pos-x, 50%) var(--bg-pos-y, 50%);
     background-repeat: no-repeat;
     display: none;
 }
@@ -289,6 +289,7 @@ body {
 #bg-layer-video {
     z-index: 2;
     object-fit: cover;
+    object-position: var(--bg-pos-x, 50%) var(--bg-pos-y, 50%);
     display: none;
     background-color: transparent;
 }

@@ -181,7 +181,7 @@
         </div>
     </div>
 
-    <div class="draggable-widget" id="widget-settings" style="display: none; width: 300px; z-index: 5000;">
+    <div class="draggable-widget" id="widget-settings" style="display: none; width: 320px; z-index: 5000;">
         <div class="header-text"><span class="title-text">SETTINGS.EXE</span> <span id="btn-close-settings" class="red" style="float: right; cursor: pointer;">[ X ]</span></div>
         <div class="divider-text divider">--------------------------------------------------</div>
         <div class="settings-content white">
@@ -203,6 +203,23 @@
             <div class="setting-item">
                 <span class="blue">BG Dim:</span>
                 <span id="settings-dim-label" class="yellow">60%</span>
+            </div>
+            <div class="setting-item" style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="blue">Offset X:</span>
+                <div style="display: flex; gap: 5px; align-items: center;">
+                    <span id="btn-bg-x-down" class="yellow" style="cursor: pointer; padding: 0 5px; border: 1px solid #555;">[ &lt; ]</span>
+                    <span id="label-bg-x" class="yellow" style="min-width: 38px; text-align: center; display: inline-block;">50%</span>
+                    <span id="btn-bg-x-up" class="yellow" style="cursor: pointer; padding: 0 5px; border: 1px solid #555;">[ &gt; ]</span>
+                </div>
+            </div>
+            <div class="setting-item" style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="blue">Offset Y:</span>
+                <div style="display: flex; gap: 5px; align-items: center;">
+                    <span id="btn-bg-y-down" class="yellow" style="cursor: pointer; padding: 0 5px; border: 1px solid #555;">[ ^ ]</span>
+                    <span id="label-bg-y" class="yellow" style="min-width: 38px; text-align: center; display: inline-block;">50%</span>
+                    <span id="btn-bg-y-up" class="yellow" style="cursor: pointer; padding: 0 5px; border: 1px solid #555;">[ v ]</span>
+                    <span id="btn-bg-reset-pos" class="yellow" style="cursor: pointer; margin-left: 4px; font-size: 10px; border: 1px solid #555; padding: 1px 4px;" title="Reset to Center">[ RST ]</span>
+                </div>
             </div>
             <div class="divider-text">--------------------------------------------------</div>
             <div class="setting-item gray" style="font-size: 11px;">

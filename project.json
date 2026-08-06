@@ -358,6 +358,22 @@
                 "max": 100,
                 "value": 60
             },
+            "bg_pos_x": {
+                "order": 505,
+                "text": "Wallpaper Horizontal Position (X %)",
+                "type": "slider",
+                "min": 0,
+                "max": 100,
+                "value": 50
+            },
+            "bg_pos_y": {
+                "order": 506,
+                "text": "Wallpaper Vertical Position (Y %)",
+                "type": "slider",
+                "min": 0,
+                "max": 100,
+                "value": 50
+            },
             "radar_group": {
                 "order": 600,
                 "text": "Map Settings",

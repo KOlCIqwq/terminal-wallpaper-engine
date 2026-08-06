@@ -31,6 +31,20 @@ let currentBgImage = "";
 window.currentBgDim = 0.6;
 let currentBgType = "image";
 
+let bgPosX = parseInt(localStorage.getItem('bg_pos_x') || '50', 10);
+let bgPosY = parseInt(localStorage.getItem('bg_pos_y') || '50', 10);
+
+function updateBgPositionDisplay() {
+    document.documentElement.style.setProperty('--bg-pos-x', bgPosX + '%');
+    document.documentElement.style.setProperty('--bg-pos-y', bgPosY + '%');
+    const labelX = document.getElementById('label-bg-x');
+    const labelY = document.getElementById('label-bg-y');
+    if (labelX) labelX.textContent = bgPosX + '%';
+    if (labelY) labelY.textContent = bgPosY + '%';
+}
+
+updateBgPositionDisplay();
+
 let pendingWebmPath = null;
 
 let isPythonServerRunning = true;
@@ -603,6 +617,20 @@ window.myPropertyHandlers.push(function(properties) {
 
     if (properties.bg_dim !== undefined) {
         window.currentBgDim = properties.bg_dim.value / 100;
+    }
+
+    if (properties.bg_pos_x !== undefined) {
+        bgPosX = properties.bg_pos_x.value;
+        localStorage.setItem('bg_pos_x', bgPosX);
+        if (typeof updateBgPositionDisplay === 'function') updateBgPositionDisplay();
+        else root.style.setProperty('--bg-pos-x', bgPosX + '%');
+    }
+
+    if (properties.bg_pos_y !== undefined) {
+        bgPosY = properties.bg_pos_y.value;
+        localStorage.setItem('bg_pos_y', bgPosY);
+        if (typeof updateBgPositionDisplay === 'function') updateBgPositionDisplay();
+        else root.style.setProperty('--bg-pos-y', bgPosY + '%');
     }
 
     const imageLayer = document.getElementById('bg-layer-image');
@@ -1638,6 +1666,7 @@ if (btnSettings && widgetSettings) {
         if (toggleBgVideo) toggleBgVideo.textContent = bgVideoEnabled ? "[ ENABLED ]" : "[ DISABLED ]";
         if (togglePixivBg) togglePixivBg.textContent = window.pixivEnabled ? "[ ENABLED ]" : "[ DISABLED ]";
         if (settingsDimLabel) settingsDimLabel.textContent = Math.round(window.currentBgDim * 100) + "%";
+        updateBgPositionDisplay();
     });
 }
 
@@ -1668,6 +1697,56 @@ if (togglePixivBg) {
             if (btnNext) btnNext.style.display = 'none';
             refreshBackground();
         }
+    });
+}
+
+// --- Background Position Offset Logic ---
+const btnBgXDown = document.getElementById('btn-bg-x-down');
+const btnBgXUp = document.getElementById('btn-bg-x-up');
+const btnBgYDown = document.getElementById('btn-bg-y-down');
+const btnBgYUp = document.getElementById('btn-bg-y-up');
+const btnBgResetPos = document.getElementById('btn-bg-reset-pos');
+
+if (btnBgXDown) {
+    btnBgXDown.addEventListener('click', (e) => {
+        e.stopPropagation();
+        bgPosX = Math.max(0, bgPosX - 5);
+        localStorage.setItem('bg_pos_x', bgPosX);
+        updateBgPositionDisplay();
+    });
+}
+if (btnBgXUp) {
+    btnBgXUp.addEventListener('click', (e) => {
+        e.stopPropagation();
+        bgPosX = Math.min(100, bgPosX + 5);
+        localStorage.setItem('bg_pos_x', bgPosX);
+        updateBgPositionDisplay();
+    });
+}
+if (btnBgYDown) {
+    btnBgYDown.addEventListener('click', (e) => {
+        e.stopPropagation();
+        bgPosY = Math.max(0, bgPosY - 5);
+        localStorage.setItem('bg_pos_y', bgPosY);
+        updateBgPositionDisplay();
+    });
+}
+if (btnBgYUp) {
+    btnBgYUp.addEventListener('click', (e) => {
+        e.stopPropagation();
+        bgPosY = Math.min(100, bgPosY + 5);
+        localStorage.setItem('bg_pos_y', bgPosY);
+        updateBgPositionDisplay();
+    });
+}
+if (btnBgResetPos) {
+    btnBgResetPos.addEventListener('click', (e) => {
+        e.stopPropagation();
+        bgPosX = 50;
+        bgPosY = 50;
+        localStorage.setItem('bg_pos_x', 50);
+        localStorage.setItem('bg_pos_y', 50);
+        updateBgPositionDisplay();
     });
 }
 
