@@ -13,6 +13,40 @@ let favModeActive = localStorage.getItem('pixiv_fav_mode') === 'true';
 let pixivBlacklist = new Set(JSON.parse(localStorage.getItem('pixiv_blacklist') || "[]"));
 let pixivFavorites = [];
 
+const PIXIV_PROXIES = [
+    "https://pixiv.canaria.cc",
+    "https://proxy.pixiv.shojo.cn",
+    "https://i.pixiv.re",
+    "https://i.pixiv.cat"
+];
+
+function extractPximgPath(fullUrl) {
+    if (!fullUrl) return "";
+    const match = fullUrl.match(/((\/c\/[^\/]+)?\/(img-original|img-master|custom-thumb)\/.+)$/);
+    if (match) return match[1];
+    if (fullUrl.startsWith("http")) {
+        const path = fullUrl.replace(/^https?:\/\/[^\/]+/, '');
+        return path.startsWith('/') ? path : '/' + path;
+    }
+    return fullUrl.startsWith('/') ? fullUrl : '/' + fullUrl;
+}
+
+function buildProxyUrl(rawPathOrUrl, proxyIdx = 0) {
+    const proxy = PIXIV_PROXIES[proxyIdx] || PIXIV_PROXIES[0];
+    if (!rawPathOrUrl) return "";
+
+    const catMatch = rawPathOrUrl.match(/^(?:https?:\/\/(?:i\.)?pixiv\.(?:cat|nl|re)\/)?(\d+(?:-p\d+|_p\d+)?\.(?:jpg|png|gif))$/i);
+    if (catMatch) {
+        if (proxy.includes("shojo.cn") || proxy.includes("canaria.cc")) {
+            return "https://pixiv.nl/" + catMatch[1];
+        }
+        return "https://pixiv.cat/" + catMatch[1];
+    }
+
+    const path = extractPximgPath(rawPathOrUrl);
+    return proxy + path;
+}
+
 function saveBlacklist() {
     localStorage.setItem('pixiv_blacklist', JSON.stringify(Array.from(pixivBlacklist)));
 }
@@ -155,16 +189,25 @@ async function fetchPixivRanking() {
                             return true;
                         })
                         .map(item => {
-                            // Use pixiv.cat for high-res background
-                            const highRes = `https://pixiv.cat/${item.id}.jpg`;
-                            
-                            // Extract thumbnail from medium url if possible, otherwise fallback to highRes
-                            let thumb = highRes;
-                            if (item.image_urls && item.image_urls.medium) {
-                                thumb = item.image_urls.medium.replace('i.pximg.net', 'i.pixiv.cat');
+                            let originalPximgUrl = "";
+                            if (item.meta_single_page && item.meta_single_page.original_image_url) {
+                                originalPximgUrl = item.meta_single_page.original_image_url;
+                            } else if (item.meta_pages && item.meta_pages.length > 0 && item.meta_pages[0].image_urls && item.meta_pages[0].image_urls.original) {
+                                originalPximgUrl = item.meta_pages[0].image_urls.original;
+                            } else if (item.image_urls && (item.image_urls.large || item.image_urls.medium)) {
+                                originalPximgUrl = item.image_urls.large || item.image_urls.medium;
                             }
-                            
+
+                            const rawPath = extractPximgPath(originalPximgUrl);
+                            const rawThumb = (item.image_urls && item.image_urls.medium) ? extractPximgPath(item.image_urls.medium) : rawPath;
+
+                            const highRes = buildProxyUrl(rawPath, 0);
+                            const thumb = buildProxyUrl(rawThumb, 1);
+
                             return {
+                                id: item.id,
+                                rawPath: rawPath,
+                                rawThumb: rawThumb,
                                 url: highRes,
                                 thumb: thumb,
                                 title: item.title,
@@ -220,11 +263,16 @@ function fetchAlternativeRanking() {
                 let horizontalFallback = data.data
                     .filter(item => item.width > item.height)
                     .map(item => {
-                        const originalUrl = (item.urls.original || item.urls.regular || "").replace('i.pximg.net', 'i.pixiv.cat');
-                        const thumbUrl = (item.urls.small || item.urls.thumb || originalUrl).replace('i.pximg.net', 'i.pixiv.cat');
+                        const originalUrl = (item.urls.original || item.urls.regular || "");
+                        const thumbUrl = (item.urls.small || item.urls.thumb || originalUrl);
+                        const rawPath = extractPximgPath(originalUrl);
+                        const rawThumb = extractPximgPath(thumbUrl);
                         return {
-                            url: originalUrl,
-                            thumb: thumbUrl,
+                            id: item.pid,
+                            rawPath: rawPath,
+                            rawThumb: rawThumb,
+                            url: buildProxyUrl(rawPath, 0),
+                            thumb: buildProxyUrl(rawThumb, 1),
                             title: item.title,
                             user: item.author,
                             link: `https://www.pixiv.net/artworks/${item.pid}`
@@ -258,11 +306,17 @@ function applyPixivBackground() {
     const illust = pixivRankings[pixivCurrentIndex];
     if (!illust) return;
 
-    const imageUrl = illust.url;
-    
+    loadPixivWallpaper(illust, false);
+}
+
+function applySpecificBackground(illust) {
+    if (!illust) return;
+    loadPixivWallpaper(illust, true);
+}
+
+function loadPixivWallpaper(illust, isFavorite = false) {
     const videoLayer = document.getElementById('bg-layer-video');
     const imageLayer = document.getElementById('bg-layer-image');
-    const overlayLayer = document.getElementById('bg-layer-overlay');
     const btnNext = document.getElementById('btn-pixiv-next');
 
     if (btnNext) btnNext.style.display = 'block';
@@ -273,21 +327,52 @@ function applyPixivBackground() {
         videoLayer.removeAttribute('src');
         videoLayer.load();
     }
-    
-    // Set Pixiv Image on dedicated layer
-    if (imageLayer) {
-        imageLayer.style.backgroundImage = `url('${imageUrl}')`;
-        imageLayer.style.display = 'block';
+
+    const rawPath = illust.rawPath || illust.url;
+    let proxyIdx = 0;
+
+    function tryLoadNextProxy() {
+        if (proxyIdx >= PIXIV_PROXIES.length) {
+            appendLog(`[PIXIV] Failed to load wallpaper across all proxies: ${illust.title}`);
+            if (imageLayer) {
+                imageLayer.style.backgroundImage = `url('${buildProxyUrl(rawPath, 0)}')`;
+                imageLayer.style.display = 'block';
+            }
+            return;
+        }
+
+        const currentProxy = PIXIV_PROXIES[proxyIdx];
+        const targetUrl = buildProxyUrl(rawPath, proxyIdx);
+
+        // Preload image to test availability before setting background
+        const tempImg = new Image();
+        tempImg.onload = () => {
+            if (imageLayer) {
+                imageLayer.style.backgroundImage = `url('${targetUrl}')`;
+                imageLayer.style.display = 'block';
+            }
+            updatePixivDim();
+            document.body.style.backgroundImage = 'none';
+            if (typeof updateGalleryActiveState === 'function') {
+                updateGalleryActiveState();
+            }
+            const proxyName = currentProxy.replace(/^https?:\/\//, '');
+            if (isFavorite) {
+                appendLog(`[FAVORITE] Applied (${proxyName}): ${illust.title}`);
+            } else {
+                appendLog(`[PIXIV] Applied (${proxyName}): ${illust.title} by ${illust.user}`);
+                savePixivState();
+            }
+        };
+        tempImg.onerror = () => {
+            console.warn(`[PIXIV] Proxy ${currentProxy} failed for ${illust.title}, trying next proxy...`);
+            proxyIdx++;
+            tryLoadNextProxy();
+        };
+        tempImg.src = targetUrl;
     }
 
-    // Update Overlay
-    updatePixivDim();
-
-    // Reset body background
-    document.body.style.backgroundImage = 'none';
-
-    appendLog(`[PIXIV] Applied: ${illust.title} by ${illust.user}`);
-    savePixivState(); // Update index in Python
+    tryLoadNextProxy();
 }
 
 function updatePixivDim() {
@@ -310,19 +395,6 @@ function nextPixivWallpaper() {
         applyPixivBackground();
     }
     lastPixivAction = Date.now();
-}
-
-function applySpecificBackground(illust) {
-    if (!illust) return;
-    const imageUrl = illust.url;
-    const imageLayer = document.getElementById('bg-layer-image');
-    if (imageLayer) {
-        imageLayer.style.backgroundImage = `url('${imageUrl}')`;
-        imageLayer.style.display = 'block';
-    }
-    updatePixivDim();
-    document.body.style.backgroundImage = 'none';
-    appendLog(`[FAVORITE] Applied: ${illust.title}`);
 }
 
 const toggleFavMode = document.getElementById('toggle-fav-mode');
@@ -408,23 +480,55 @@ window.myPropertyHandlers.push(function(properties) {
 });
 
 // --- Pixiv Gallery UI Logic ---
+function updateGalleryActiveState() {
+    const grid = document.getElementById('gallery-grid');
+    if (!grid) return;
+    const activeBg = document.getElementById('bg-layer-image').style.backgroundImage || '';
+    const displayList = favModeActive ? pixivFavorites : pixivRankings;
+
+    const items = grid.querySelectorAll('.gallery-item');
+    items.forEach((it, i) => {
+        const illust = displayList[i];
+        const isItemActive = (i === pixivCurrentIndex) || (illust && (
+            (illust.rawPath && activeBg.includes(illust.rawPath)) || 
+            (illust.id && activeBg.includes(String(illust.id))) ||
+            (illust.url && activeBg.includes(illust.url))
+        ));
+        it.classList.toggle('active', !!isItemActive);
+    });
+}
+
 function renderPixivGallery() {
     const grid = document.getElementById('gallery-grid');
     if (!grid) return;
     
     grid.innerHTML = '';
+    const currentMode = favModeActive ? 'fav' : 'rank';
+    grid.setAttribute('data-mode', currentMode);
     
     // Determine which list to show in gallery
     const displayList = favModeActive ? pixivFavorites : pixivRankings;
 
     displayList.forEach((illust, index) => {
-        const isFav = pixivFavorites.some(f => f.url === illust.url);
         const item = document.createElement('div');
-        const activeUrl = document.getElementById('bg-layer-image').style.backgroundImage.replace(/url\(['"](.+)['"]\)/, '$1');
-        item.className = 'gallery-item' + (illust.url === activeUrl ? ' active' : '');
+        const activeBg = document.getElementById('bg-layer-image').style.backgroundImage || '';
+        const isItemActive = (index === pixivCurrentIndex) || 
+                             (illust.rawPath && activeBg.includes(illust.rawPath)) || 
+                             (illust.id && activeBg.includes(String(illust.id))) ||
+                             (illust.url && activeBg.includes(illust.url));
+
+        const isFav = pixivFavorites.some(f => 
+            f.url === illust.url || 
+            (f.id && illust.id && f.id === illust.id) ||
+            (f.rawPath && illust.rawPath && f.rawPath === illust.rawPath)
+        );
+
+        item.className = 'gallery-item' + (isItemActive ? ' active' : '');
         
+        const initialThumb = buildProxyUrl(illust.rawThumb || illust.rawPath || illust.thumb || illust.url, 1);
+
         item.innerHTML = `
-            <img src="${illust.thumb}" loading="lazy">
+            <img src="${initialThumb}" loading="lazy" data-proxy-idx="1">
             <div class="gallery-remove-btn">X</div>
             <div class="gallery-fav-btn ${isFav ? 'is-fav' : ''}">${isFav ? '♥' : '♡'}</div>
             <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); padding: 2px 5px; font-size: 9px;" class="white col">
@@ -432,7 +536,20 @@ function renderPixivGallery() {
             </div>
         `;
         
-        // Manual Select
+        // Thumbnail Fallback on Error
+        const imgEl = item.querySelector('img');
+        if (imgEl) {
+            imgEl.onerror = function() {
+                let currentIdx = parseInt(this.getAttribute('data-proxy-idx') || '0', 10);
+                currentIdx = (currentIdx + 1) % PIXIV_PROXIES.length;
+                if (currentIdx !== 1) { // avoid infinite loop if cycled through all
+                    this.setAttribute('data-proxy-idx', currentIdx);
+                    this.src = buildProxyUrl(illust.rawThumb || illust.rawPath || illust.thumb || illust.url, currentIdx);
+                }
+            };
+        }
+
+        // Manual Select (DO NOT re-render the gallery - only update active class!)
         item.onclick = (e) => {
             e.stopPropagation();
             pixivCurrentIndex = index;
@@ -443,35 +560,49 @@ function renderPixivGallery() {
             } else {
                 applyPixivBackground();
             }
-            renderPixivGallery();
+
+            // Instantly highlight the clicked item without clearing the DOM or reloading images
+            const allItems = grid.querySelectorAll('.gallery-item');
+            allItems.forEach((it, i) => {
+                it.classList.toggle('active', i === index);
+            });
         };
 
         // Favorite Toggle
         const favBtn = item.querySelector('.gallery-fav-btn');
         favBtn.onclick = (e) => {
             e.stopPropagation();
-            const existingIndex = pixivFavorites.findIndex(f => f.url === illust.url);
-            const isActive = illust.url === activeUrl;
+            const existingIndex = pixivFavorites.findIndex(f => 
+                f.url === illust.url || 
+                (f.id && illust.id && f.id === illust.id) ||
+                (f.rawPath && illust.rawPath && f.rawPath === illust.rawPath)
+            );
 
             if (existingIndex > -1) {
                 // Remove from favorites
                 pixivFavorites.splice(existingIndex, 1);
+                favBtn.classList.remove('is-fav');
+                favBtn.textContent = '♡';
                 
-                // If we are in Favs Mode and just removed the active background, cycle to next
-                if (favModeActive && isActive) {
-                    if (pixivFavorites.length > 0) {
-                        nextPixivWallpaper();
-                    } else {
-                        refreshBackground(); // Go back to default if no favs left
+                // If we are in Favs Mode, remove just this card from DOM
+                if (favModeActive) {
+                    item.remove();
+                    if (isItemActive) {
+                        if (pixivFavorites.length > 0) {
+                            nextPixivWallpaper();
+                        } else {
+                            refreshBackground(); // Go back to default if no favs left
+                        }
                     }
                 }
             } else {
                 // Add to favorites
                 pixivFavorites.push(illust);
+                favBtn.classList.add('is-fav');
+                favBtn.textContent = '♥';
             }
             
             saveFavoritesToPython();
-            renderPixivGallery();
         };
 
         // Remove from Gallery / Blacklist
@@ -480,16 +611,18 @@ function renderPixivGallery() {
             e.stopPropagation();
             const urlToRemove = illust.url;
             pixivBlacklist.add(urlToRemove);
+            if (illust.id) pixivBlacklist.add(String(illust.id));
             saveBlacklist();
             
             if (favModeActive) {
-                pixivFavorites = pixivFavorites.filter(f => f.url !== urlToRemove);
+                pixivFavorites = pixivFavorites.filter(f => f.url !== urlToRemove && (!illust.id || f.id !== illust.id));
                 saveFavoritesToPython();
             } else {
-                pixivRankings = pixivRankings.filter(item => item.url !== urlToRemove);
+                pixivRankings = pixivRankings.filter(item => item.url !== urlToRemove && (!illust.id || item.id !== illust.id));
             }
 
-            renderPixivGallery();
+            // Remove only this card without re-rendering the whole gallery
+            item.remove();
         };
         
         grid.appendChild(item);
@@ -507,7 +640,13 @@ if (btnOpenGallery && widgetGallery) {
         widgetGallery.style.display = isHidden ? 'flex' : 'none';
         
         if (isHidden) {
-            renderPixivGallery();
+            const currentMode = favModeActive ? 'fav' : 'rank';
+            const grid = document.getElementById('gallery-grid');
+            if (grid && (grid.getAttribute('data-mode') !== currentMode || grid.children.length === 0)) {
+                renderPixivGallery();
+            } else {
+                updateGalleryActiveState();
+            }
             // Position near settings
             const settingsRect = document.getElementById('widget-settings').getBoundingClientRect();
             widgetGallery.style.left = (settingsRect.left - 460) + "px";
