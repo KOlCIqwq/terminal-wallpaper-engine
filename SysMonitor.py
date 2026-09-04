@@ -126,6 +126,7 @@ def fetch_itunes_duration(title, artist):
             data = json.loads(response.read().decode())
             if data['resultCount'] > 0:
                 fallback_duration = data['results'][0]['trackTimeMillis'] / 1000.0
+                trigger_media_event()
     except:
         pass 
 
@@ -187,7 +188,7 @@ def unbind_active_session():
     session_event_tokens = []
 
 async def get_media_info(fetch_props=False):
-    global media_manager, cur_media_session, cached_title, cached_artist
+    global media_manager, cur_media_session, cached_title, cached_artist, cur_playback_pos
     
     if media_manager is None:
         try:
@@ -211,7 +212,7 @@ async def get_media_info(fetch_props=False):
         if fetch_props:
             try:
                 props = await current_session.try_get_media_properties_async()
-                if props:
+                if props and props.title:
                     cached_title = props.title
                     cached_artist = props.artist
             except:
@@ -221,40 +222,63 @@ async def get_media_info(fetch_props=False):
             cached_title = "No Media"
             cached_artist = ""
 
+        raw_position = 0.0
+        calculated_position = cur_playback_pos
+        duration = 0.0
+        snapshot_age = 0.0
+        updated_timestamp = 0.0
+
         try:
             timeline = current_session.get_timeline_properties()
             if timeline:
                 start = timeline.start_time.total_seconds()
                 end = timeline.end_time.total_seconds()
-                position = timeline.position.total_seconds()
-                duration = end - start
-                snapshot_age = (datetime.datetime.now(datetime.timezone.utc) - timeline.last_updated_time).total_seconds()
-                if duration < 0: duration = 0
-            else:
-                position, duration, snapshot_age = 0, 0, 0
+                raw_position = timeline.position.total_seconds()
+                duration = max(0.0, end - start)
+                
+                dt_updated = (datetime.datetime.now(datetime.timezone.utc) - timeline.last_updated_time).total_seconds()
+                if dt_updated < 0 or dt_updated > 86400:
+                    dt_updated = 0.0
+                snapshot_age = dt_updated
+                updated_timestamp = timeline.last_updated_time.timestamp()
+
+                if raw_position > 0:
+                    if status_str == "Playing":
+                        projected = raw_position + snapshot_age
+                        calculated_position = min(duration, projected) if duration > 0 else projected
+                    else:
+                        calculated_position = min(duration, raw_position) if duration > 0 else raw_position
+                elif duration > 0 and snapshot_age > 0 and status_str == "Playing":
+                    # Some web browsers keep raw_position at initial start and advance last_updated_time
+                    projected = raw_position + snapshot_age
+                    calculated_position = min(duration, projected) if duration > 0 else projected
         except:
-            position, duration, snapshot_age = 0, 0, 0
+            pass
 
         return {
             "media_title": cached_title,
             "media_artist": cached_artist,
             "media_status": status_str,
-            "media_position": position,
+            "media_position": calculated_position,
+            "raw_position": raw_position,
             "media_duration": duration,
-            "snapshot_age": snapshot_age
+            "snapshot_age": snapshot_age,
+            "updated_timestamp": updated_timestamp
         }
     else:
         return {
             "media_title": "No Media",
             "media_artist": "",
             "media_status": "Stopped",
-            "media_position": 0,
-            "media_duration": 0,
-            "snapshot_age": 0
+            "media_position": 0.0,
+            "raw_position": 0.0,
+            "media_duration": 0.0,
+            "snapshot_age": 0.0,
+            "updated_timestamp": 0.0
         }
 
 async def execute_media_command(command, param=None):
-    global cur_media_session, media_manager, seek_target, seek_time
+    global cur_media_session, media_manager, seek_target, seek_time, cur_playback_pos
     # Ensure media_manager and session are present
     if media_manager is None:
         try:
@@ -278,6 +302,7 @@ async def execute_media_command(command, param=None):
                 success = await sess.try_change_playback_position_async(ticks)
                 seek_target = float(param)
                 seek_time = time.time()
+                cur_playback_pos = float(param)
         except Exception:
             success = False
 
@@ -346,14 +371,16 @@ def get_static():
     system_state['ram_total'] = ram_info
     system_state['sys_log'] = "Hardware specs loaded"
 
-# Global state for monitor_async
+# Media tracking state (Single Authoritative Source of Truth)
 cur_playback_pos = 0.0
 last_known_track_title = ""
-last_known_track_duration = 0
-is_reset_phase = False
+last_known_track_duration = 0.0
+last_raw_smtc_pos = -1.0
+last_smtc_updated_ts = 0.0
 
 async def handle_media_event_async():
-    global system_state, cur_playback_pos, last_known_track_title, last_known_track_duration, is_reset_phase, fallback_duration
+    global system_state, cur_playback_pos, last_known_track_title, last_known_track_duration, fallback_duration
+    global last_raw_smtc_pos, last_smtc_updated_ts
     try:
         media_data = await get_media_info(fetch_props=True)
     except:
@@ -362,22 +389,28 @@ async def handle_media_event_async():
     status = media_data.get('media_status', 'Stopped')
     title = media_data.get('media_title', '')
     artist = media_data.get('media_artist', '')
-    skipped_position = media_data.get('media_position', 0)
-    current_duration = media_data.get('media_duration', 0)
+    raw_pos = media_data.get('raw_position', 0.0)
+    current_duration = media_data.get('media_duration', 0.0)
+    updated_ts = media_data.get('updated_timestamp', 0.0)
 
-    if title != last_known_track_title:
+    # Genuine song change
+    if title and title != "No Media" and title != last_known_track_title:
         last_known_track_title = title
-        cur_playback_pos = 0.0
-        is_reset_phase = True
+        cur_playback_pos = raw_pos if raw_pos > 0 else 0.0
         last_known_track_duration = current_duration
-        fallback_duration = 0
-        if title and title != "No Media":
-            threading.Thread(target=fetch_itunes_duration, args=(title, artist), daemon=True).start()
+        last_raw_smtc_pos = raw_pos
+        last_smtc_updated_ts = updated_ts
+        fallback_duration = 0.0
+        threading.Thread(target=fetch_itunes_duration, args=(title, artist), daemon=True).start()
     else:
         if current_duration > 0:
             last_known_track_duration = current_duration
-        if skipped_position > 0:
-            cur_playback_pos = skipped_position
+        
+        # Player fast-forward / seek detection (e.g. scrubbing inside Spotify, browser, etc.)
+        if raw_pos > 0 and abs(raw_pos - last_raw_smtc_pos) > 0.3:
+            last_raw_smtc_pos = raw_pos
+            last_smtc_updated_ts = updated_ts
+            cur_playback_pos = raw_pos
 
     dur = last_known_track_duration if last_known_track_duration > 0 else fallback_duration
     media_data['media_duration'] = dur
@@ -386,7 +419,7 @@ async def handle_media_event_async():
 
     payload = {
         "type": "media_update",
-        "media_title": title,
+        "media_title": title if title else last_known_track_title,
         "media_artist": artist,
         "media_status": status,
         "media_position": cur_playback_pos,
@@ -397,15 +430,11 @@ async def handle_media_event_async():
 
 async def monitor_async():
     global system_state, seek_target, seek_time, media_manager, fallback_duration, main_async_loop
-    global cur_playback_pos, last_known_track_title, last_known_track_duration, is_reset_phase
+    global cur_playback_pos, last_known_track_title, last_known_track_duration
+    global last_raw_smtc_pos, last_smtc_updated_ts
     
     main_async_loop = asyncio.get_running_loop()
     
-    last_track_title = ""
-    last_track_duration = 0 
-    cur_pos = 0.0
-    prev_skip_position = 0
-    reset = False
     startup = True
     
     # Initialize SMTC Manager and subscribe
@@ -446,6 +475,9 @@ async def monitor_async():
                     pass
         
         fetch_props = startup or (tick % 8 == 0)
+        if startup:
+            startup = False
+            
         try:
             media_data = await get_media_info(fetch_props=fetch_props)
         except:
@@ -454,81 +486,64 @@ async def monitor_async():
         status = media_data.get('media_status', 'Stopped')
         title = media_data.get('media_title', '')
         artist = media_data.get('media_artist', '')
-        skipped_position = media_data.get('media_position', 0)
-        current_duration = media_data.get('media_duration', 0) 
+        raw_pos = media_data.get('raw_position', 0.0)
+        current_duration = media_data.get('media_duration', 0.0)
+        updated_ts = media_data.get('updated_timestamp', 0.0)
         
         if current_duration > 0:
-            last_track_duration = current_duration
+            last_known_track_duration = current_duration
         
         if current_duration <= 0:
-            if last_track_duration > 0:
-                media_data['media_duration'] = last_track_duration
+            if last_known_track_duration > 0:
+                media_data['media_duration'] = last_known_track_duration
             elif fallback_duration > 0:
                 media_data['media_duration'] = fallback_duration   
 
+        # User sought from Wallpaper Engine interface
         if seek_target is not None:
-            cur_pos = seek_target
+            cur_playback_pos = seek_target
+            last_raw_smtc_pos = seek_target
             seek_target = None
-            
-        snapshot_age = media_data.get('snapshot_age', 0)
 
-        if startup:
-            prev_skip_position = skipped_position + 0.1
-            last_track_title = title
-            last_track_duration = current_duration
-            startup = False
-            
-        ignore_smtc = (current_time - seek_time < 1.0)
-
-        if abs(prev_skip_position - skipped_position) > 0.0000001:
-            gap = abs(cur_pos - skipped_position)
-            is_echo = (gap < 6.0) and (current_time - seek_time < 15.0)
-            
-            if not ignore_smtc and not is_echo: 
-                if title == last_track_title:
-                    if reset == False:
-                        catch_up_delay = snapshot_age if status == 'Playing' else 0.0
-                        if catch_up_delay < 0 or catch_up_delay > 15.0:
-                            catch_up_delay = 1.5 
-                        cur_pos = skipped_position + catch_up_delay
-                    else:
-                        reset = False
-            prev_skip_position = skipped_position
-            
-        if title != last_track_title:
-            last_track_title = title
-            cur_pos = 0
-            reset = True
-            startup = True
-            media_data['media_duration'] = 0
-            last_track_duration = 0
-            fallback_duration = 0
+        if title and title != "No Media" and title != last_known_track_title:
+            last_known_track_title = title
+            cur_playback_pos = raw_pos if raw_pos > 0 else 0.0
+            media_data['media_duration'] = 0.0
+            last_known_track_duration = 0.0
+            fallback_duration = 0.0
+            last_raw_smtc_pos = raw_pos
+            last_smtc_updated_ts = updated_ts
             threading.Thread(target=fetch_itunes_duration, args=(title, artist), daemon=True).start()
+        else:
+            recent_local_seek = (current_time - seek_time < 0.8)
+            player_seeked = (raw_pos > 0 and abs(raw_pos - last_raw_smtc_pos) > 0.3)
             
-        elif status == 'Playing':
-            cur_pos += dt
-        elif status == 'Stopped':
-            cur_pos = 0
-            media_data['media_title'] = "No Media"
-            media_data['media_artist'] = ""
-            media_data['media_duration'] = 0
+            if player_seeked and not recent_local_seek:
+                cur_playback_pos = raw_pos
+                last_raw_smtc_pos = raw_pos
+                last_smtc_updated_ts = updated_ts
+            elif status == 'Playing':
+                cur_playback_pos += dt
+            elif status == 'Stopped' and not title:
+                cur_playback_pos = 0.0
         
-        cur_playback_pos = cur_pos
-        last_known_track_title = title
-        last_known_track_duration = media_data.get('media_duration', 0)
+        if title:
+            last_known_track_title = title
+        dur = last_known_track_duration if last_known_track_duration > 0 else fallback_duration
         
-        media_data['media_position'] = cur_pos
+        media_data['media_position'] = cur_playback_pos
+        media_data['media_duration'] = dur
         system_state.update(media_data)
 
         # Send real-time snapshot over WebSocket
         if active_ws_clients:
             payload = {
                 "type": "media_update",
-                "media_title": title,
+                "media_title": title if title else last_known_track_title,
                 "media_artist": artist,
                 "media_status": status,
-                "media_position": cur_pos,
-                "media_duration": media_data.get('media_duration', 0),
+                "media_position": cur_playback_pos,
+                "media_duration": dur,
                 "server_time": current_time
             }
             await broadcast_ws_media(payload)

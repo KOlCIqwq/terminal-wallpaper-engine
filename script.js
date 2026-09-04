@@ -91,25 +91,44 @@ function handleWsMediaUpdate(data) {
     const pos = typeof data.media_position === 'number' ? data.media_position : parseFloat(data.media_position || 0);
     const dur = typeof data.media_duration === 'number' ? data.media_duration : parseFloat(data.media_duration || 0);
 
+    const trackSignature = `${title}-${artist}`;
+    const isSongChange = (trackSignature !== currentTrackHash && title && title !== "No Media");
+    const statusChanged = (status !== mediaStatus);
+
+    // Current local interpolated timestamp
+    const currentLocalPos = (mediaStatus === "Playing" && mediaBaseTime > 0)
+        ? (mediaBasePos + (performance.now() - mediaBaseTime) / 1000)
+        : mediaBasePos;
+
+    // Detect fast-forward / rewind in external music player
+    const isDiscontinuity = Math.abs(currentLocalPos - pos) > 0.6;
+
     mediaTitle = title;
     mediaArtist = artist;
     mediaStatus = status;
-    mediaDuration = dur;
-    mediaBasePos = pos;
-    mediaBaseTime = performance.now();
-    currentMediaPosition = pos;
+    if (dur > 0) {
+        mediaDuration = dur;
+    }
 
-    const trackSignature = `${title}-${artist}`;
-    if (trackSignature !== currentTrackHash && title && title !== "No Media") {
+    if (isSongChange) {
         currentTrackHash = trackSignature;
-        currentMediaPosition = 0;
-        optimisticPosition = 0;
-        mediaBasePos = 0;
+        currentMediaPosition = pos;
+        optimisticPosition = pos;
+        mediaBasePos = pos;
+        mediaBaseTime = performance.now();
         lastSeekTime = 0;
         currentLyricsData = [];
         if (typeof getLyrics === 'function') {
             getLyrics(title, artist, dur);
         }
+    } else if (isDiscontinuity || statusChanged) {
+        mediaBasePos = pos;
+        mediaBaseTime = performance.now();
+        currentMediaPosition = pos;
+    } else {
+        // Smooth clock alignment
+        mediaBasePos = pos;
+        mediaBaseTime = performance.now();
     }
 
     const playButton = document.getElementById('btn-play');
@@ -117,32 +136,37 @@ function handleWsMediaUpdate(data) {
         playButton.textContent = status === 'Playing' ? "[ || ]" : "[ ▶ ]";
     }
 
-    // Direct render on state change
-    if (dur > 0) {
-        document.getElementById('duration').textContent = `[${formatTime(pos)} / ${formatTime(dur)}]`;
-        updatePlayingBar(pos, dur);
-    } else {
-        document.getElementById('duration').textContent = "[ - / - ]";
-        updatePlayingBar(0, 0);
-    }
+    renderMediaUI(currentMediaPosition, mediaDuration);
+}
 
+function renderMediaUI(currentPos, duration) {
+    const durationElem = document.getElementById('duration');
+    if (durationElem) {
+        if (duration > 0) {
+            durationElem.textContent = `[${formatTime(currentPos)} / ${formatTime(duration)}]`;
+        } else if (currentPos > 0) {
+            durationElem.textContent = `[${formatTime(currentPos)} / --:--]`;
+        } else {
+            durationElem.textContent = "[ 0:00 / --:-- ]";
+        }
+    }
+    if (typeof updatePlayingBar === 'function') {
+        updatePlayingBar(currentPos, duration);
+    }
     if (typeof syncLyrics === 'function') {
-        syncLyrics(pos);
+        syncLyrics(currentPos);
     }
 }
 
 function mediaRenderLoop() {
-    if (isWsConnected && mediaStatus === "Playing" && mediaDuration > 0) {
+    if (isWsConnected && mediaStatus === "Playing") {
         const elapsed = (performance.now() - mediaBaseTime) / 1000;
-        const currentPos = Math.min(mediaDuration, mediaBasePos + elapsed);
-        currentMediaPosition = currentPos;
-
-        document.getElementById('duration').textContent = `[${formatTime(currentPos)} / ${formatTime(mediaDuration)}]`;
-        updatePlayingBar(currentPos, mediaDuration);
-
-        if (typeof syncLyrics === 'function') {
-            syncLyrics(currentPos);
+        let currentPos = mediaBasePos + elapsed;
+        if (mediaDuration > 0) {
+            currentPos = Math.min(mediaDuration, currentPos);
         }
+        currentMediaPosition = currentPos;
+        renderMediaUI(currentPos, mediaDuration);
     }
     requestAnimationFrame(mediaRenderLoop);
 }
