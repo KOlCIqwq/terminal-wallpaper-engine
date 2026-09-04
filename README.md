@@ -19,15 +19,6 @@ It provides both a low-latency **WebSocket server (port 25556)** for real-time m
 
 ---
 
-## Architecture Overview
-
-```text
-  Windows OS (SMTC)  <--- Native Callbacks --->  SysMonitor.py  <--- WebSocket (25556) --->  Wallpaper Engine
-  Hardware Sensors   <--- psutil / NVML / WMI ---   (Backend)   <--- HTTP REST (25555)  --->  (Frontend UI)
-```
-
----
-
 ## Installation & Running
 
 ### Option 1: Running the Prebuilt Executable
