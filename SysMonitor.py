@@ -18,6 +18,7 @@ from urllib.parse import urlparse, parse_qs
 import winreg
 from pycaw.pycaw import AudioUtilities
 import pynvml
+import websockets
 
 # Initialize NVML for GPU monitoring
 try:
@@ -82,8 +83,14 @@ system_state = {
 }
 
 PORT = 25555
+PORT_WS = 25556
 
 media_manager = None
+cur_media_session = None
+session_event_tokens = []
+main_async_loop = None
+active_ws_clients = set()
+
 seek_target = None
 seek_time = 0
 
@@ -122,19 +129,82 @@ def fetch_itunes_duration(title, artist):
     except:
         pass 
 
+async def broadcast_ws_media(payload):
+    global active_ws_clients
+    if not active_ws_clients:
+        return
+    msg = json.dumps(payload)
+    disconnected = set()
+    for ws in list(active_ws_clients):
+        try:
+            await ws.send(msg)
+        except Exception:
+            disconnected.add(ws)
+    if disconnected:
+        active_ws_clients.difference_update(disconnected)
+
+def trigger_media_event():
+    global main_async_loop
+    if main_async_loop and main_async_loop.is_running():
+        asyncio.run_coroutine_threadsafe(handle_media_event_async(), main_async_loop)
+
+def on_session_changed_callback(sender, args):
+    global media_manager, main_async_loop
+    if media_manager and main_async_loop and main_async_loop.is_running():
+        try:
+            sess = media_manager.get_current_session()
+            bind_active_session(sess)
+        except:
+            pass
+    trigger_media_event()
+
+def on_media_event_callback(sender, args):
+    trigger_media_event()
+
+def bind_active_session(session):
+    global cur_media_session, session_event_tokens
+    unbind_active_session()
+    cur_media_session = session
+    if cur_media_session:
+        try:
+            t1 = cur_media_session.add_playback_info_changed(on_media_event_callback)
+            t2 = cur_media_session.add_media_properties_changed(on_media_event_callback)
+            t3 = cur_media_session.add_timeline_properties_changed(on_media_event_callback)
+            session_event_tokens = [t1, t2, t3]
+        except Exception as e:
+            session_event_tokens = []
+
+def unbind_active_session():
+    global cur_media_session, session_event_tokens
+    if cur_media_session and session_event_tokens:
+        try:
+            cur_media_session.remove_playback_info_changed(session_event_tokens[0])
+            cur_media_session.remove_media_properties_changed(session_event_tokens[1])
+            cur_media_session.remove_timeline_properties_changed(session_event_tokens[2])
+        except:
+            pass
+    cur_media_session = None
+    session_event_tokens = []
+
 async def get_media_info(fetch_props=False):
-    global media_manager, cached_title, cached_artist
+    global media_manager, cur_media_session, cached_title, cached_artist
     
     if media_manager is None:
         try:
             media_manager = await GlobalSystemMediaTransportControlsSessionManager.request_async()
+            media_manager.add_current_session_changed(on_session_changed_callback)
+            bind_active_session(media_manager.get_current_session())
         except:
             return {} 
     
-    current_session = media_manager.get_current_session()
+    current_session = cur_media_session or media_manager.get_current_session()
     
     if current_session:
-        playback_info = current_session.get_playback_info()
+        playback_info = None
+        try:
+            playback_info = current_session.get_playback_info()
+        except: pass
+
         status = playback_info.playback_status if playback_info else 0 
         status_str = "Playing" if status == 4 else ("Paused" if status == 5 else "Stopped")
         
@@ -183,18 +253,63 @@ async def get_media_info(fetch_props=False):
             "snapshot_age": 0
         }
 
+async def execute_media_command(command, param=None):
+    global cur_media_session, media_manager, seek_target, seek_time
+    # Ensure media_manager and session are present
+    if media_manager is None:
+        try:
+            media_manager = await GlobalSystemMediaTransportControlsSessionManager.request_async()
+            bind_active_session(media_manager.get_current_session())
+        except:
+            pass
+    sess = cur_media_session or (media_manager.get_current_session() if media_manager else None)
+    success = False
+    
+    if sess:
+        try:
+            if command == "playpause":
+                success = await sess.try_toggle_play_pause_async()
+            elif command == "next":
+                success = await sess.try_skip_next_async()
+            elif command == "prev":
+                success = await sess.try_skip_previous_async()
+            elif command == "seek" and param is not None:
+                ticks = int(float(param) * 10000000)
+                success = await sess.try_change_playback_position_async(ticks)
+                seek_target = float(param)
+                seek_time = time.time()
+        except Exception:
+            success = False
+
+    # Fallback to keybd_event if direct SMTC call failed or was unavailable
+    if not success and command in ("playpause", "next", "prev"):
+        if command == "playpause":
+            VK_CODE = 0xB3 
+        elif command == "next":
+            VK_CODE = 0xB0 
+        elif command == "prev":
+            VK_CODE = 0xB1 
+        ctypes.windll.user32.keybd_event(VK_CODE, 0, 0, 0) 
+        ctypes.windll.user32.keybd_event(VK_CODE, 0, 2, 0)
+    
+    # Immediately trigger an update
+    trigger_media_event()
+
 def media_command(command):
-    if command == "playpause":
-        VK_CODE = 0xB3 
-    elif command == "next":
-        VK_CODE = 0xB0 
-    elif command == "prev":
-        VK_CODE = 0xB1 
+    global main_async_loop
+    if main_async_loop and main_async_loop.is_running():
+        asyncio.run_coroutine_threadsafe(execute_media_command(command), main_async_loop)
     else:
-        return
-        
-    ctypes.windll.user32.keybd_event(VK_CODE, 0, 0, 0) 
-    ctypes.windll.user32.keybd_event(VK_CODE, 0, 2, 0) 
+        if command == "playpause":
+            VK_CODE = 0xB3 
+        elif command == "next":
+            VK_CODE = 0xB0 
+        elif command == "prev":
+            VK_CODE = 0xB1 
+        else:
+            return
+        ctypes.windll.user32.keybd_event(VK_CODE, 0, 0, 0) 
+        ctypes.windll.user32.keybd_event(VK_CODE, 0, 2, 0) 
 
 def get_static():
     global system_state
@@ -208,16 +323,13 @@ def get_static():
         
     try:
         cpu = w.Win32_Processor()[0]
-        cpu_name = cpu.Name.strip()
+        cpu_name = cpu.Name
     except:
-        cpu_name = platform.processor()
+        cpu_name = "Error retrieving CPU"
         
-    gpu_info = "Unknown GPU"
     try:
-        gpus = w.Win32_VideoController()
-        valid_gpus = [gpu.Name for gpu in gpus]
-        if valid_gpus:
-            gpu_info = " + ".join(valid_gpus)
+        gpu = w.Win32_VideoController()[0]
+        gpu_info = gpu.Name
     except:
         gpu_info = "Error retrieving GPU"
         
@@ -234,8 +346,60 @@ def get_static():
     system_state['ram_total'] = ram_info
     system_state['sys_log'] = "Hardware specs loaded"
 
+# Global state for monitor_async
+cur_playback_pos = 0.0
+last_known_track_title = ""
+last_known_track_duration = 0
+is_reset_phase = False
+
+async def handle_media_event_async():
+    global system_state, cur_playback_pos, last_known_track_title, last_known_track_duration, is_reset_phase, fallback_duration
+    try:
+        media_data = await get_media_info(fetch_props=True)
+    except:
+        return
+
+    status = media_data.get('media_status', 'Stopped')
+    title = media_data.get('media_title', '')
+    artist = media_data.get('media_artist', '')
+    skipped_position = media_data.get('media_position', 0)
+    current_duration = media_data.get('media_duration', 0)
+
+    if title != last_known_track_title:
+        last_known_track_title = title
+        cur_playback_pos = 0.0
+        is_reset_phase = True
+        last_known_track_duration = current_duration
+        fallback_duration = 0
+        if title and title != "No Media":
+            threading.Thread(target=fetch_itunes_duration, args=(title, artist), daemon=True).start()
+    else:
+        if current_duration > 0:
+            last_known_track_duration = current_duration
+        if skipped_position > 0:
+            cur_playback_pos = skipped_position
+
+    dur = last_known_track_duration if last_known_track_duration > 0 else fallback_duration
+    media_data['media_duration'] = dur
+    media_data['media_position'] = cur_playback_pos
+    system_state.update(media_data)
+
+    payload = {
+        "type": "media_update",
+        "media_title": title,
+        "media_artist": artist,
+        "media_status": status,
+        "media_position": cur_playback_pos,
+        "media_duration": dur,
+        "server_time": time.time()
+    }
+    await broadcast_ws_media(payload)
+
 async def monitor_async():
-    global system_state, seek_target, seek_time, media_manager, fallback_duration 
+    global system_state, seek_target, seek_time, media_manager, fallback_duration, main_async_loop
+    global cur_playback_pos, last_known_track_title, last_known_track_duration, is_reset_phase
+    
+    main_async_loop = asyncio.get_running_loop()
     
     last_track_title = ""
     last_track_duration = 0 
@@ -244,6 +408,14 @@ async def monitor_async():
     reset = False
     startup = True
     
+    # Initialize SMTC Manager and subscribe
+    try:
+        media_manager = await GlobalSystemMediaTransportControlsSessionManager.request_async()
+        media_manager.add_current_session_changed(on_session_changed_callback)
+        bind_active_session(media_manager.get_current_session())
+    except Exception as e:
+        print(f"SMTC init error: {e}")
+
     psutil.cpu_percent(interval=None)
     pythoncom.CoInitialize() 
 
@@ -273,7 +445,7 @@ async def monitor_async():
                 except:
                     pass
         
-        fetch_props = startup or (tick % 20 == 0)
+        fetch_props = startup or (tick % 8 == 0)
         try:
             media_data = await get_media_info(fetch_props=fetch_props)
         except:
@@ -341,8 +513,25 @@ async def monitor_async():
             media_data['media_artist'] = ""
             media_data['media_duration'] = 0
         
+        cur_playback_pos = cur_pos
+        last_known_track_title = title
+        last_known_track_duration = media_data.get('media_duration', 0)
+        
         media_data['media_position'] = cur_pos
         system_state.update(media_data)
+
+        # Send real-time snapshot over WebSocket
+        if active_ws_clients:
+            payload = {
+                "type": "media_update",
+                "media_title": title,
+                "media_artist": artist,
+                "media_status": status,
+                "media_position": cur_pos,
+                "media_duration": media_data.get('media_duration', 0),
+                "server_time": current_time
+            }
+            await broadcast_ws_media(payload)
         
         if tick % 12 == 0:
             if nvml_handle:
@@ -365,19 +554,46 @@ async def monitor_async():
         tick += 1
         if tick > 1000: tick = 0
 
+async def ws_handler(websocket):
+    global active_ws_clients, cur_playback_pos, last_known_track_title, last_known_track_duration, system_state
+    active_ws_clients.add(websocket)
+    try:
+        # Send initial snapshot immediately upon connect
+        init_payload = {
+            "type": "media_update",
+            "media_title": system_state.get('media_title', ''),
+            "media_artist": system_state.get('media_artist', ''),
+            "media_status": system_state.get('media_status', 'Stopped'),
+            "media_position": system_state.get('media_position', 0),
+            "media_duration": system_state.get('media_duration', 0),
+            "server_time": time.time()
+        }
+        await websocket.send(json.dumps(init_payload))
+
+        async for raw in websocket:
+            try:
+                data = json.loads(raw)
+                action = data.get("action")
+                pos = data.get("pos")
+                if action:
+                    await execute_media_command(action, param=pos)
+            except Exception as e:
+                pass
+    finally:
+        active_ws_clients.discard(websocket)
+
+async def run_async_services():
+    global main_async_loop
+    main_async_loop = asyncio.get_running_loop()
+    ws_server = await websockets.serve(ws_handler, "127.0.0.1", PORT_WS)
+    monitor_task = asyncio.create_task(monitor_async())
+    await asyncio.gather(ws_server.wait_closed(), monitor_task)
+
 def monitor():
-    asyncio.run(monitor_async())
+    asyncio.run(run_async_services())
             
 async def media_seek(position_seconds):
-    global media_manager
-    if media_manager is None:
-        media_manager = await GlobalSystemMediaTransportControlsSessionManager.request_async()
-    current_session = media_manager.get_current_session()
-    if current_session:
-        try:
-            ticks = int(position_seconds * 10000000)
-            await current_session.try_change_playback_position_async(ticks)
-        except: pass
+    await execute_media_command("seek", position_seconds)
 
 class RequestHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args): pass
@@ -484,10 +700,10 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
             if 'pos' in q:
                 try:
                     pos = float(q['pos'][0])
-                    global seek_target, seek_time
-                    seek_target = pos; seek_time = time.time()
-                    loop = asyncio.new_event_loop()
-                    loop.run_until_complete(media_seek(pos)); loop.close()
+                    media_command("seek") # handled via media_seek
+                    global main_async_loop
+                    if main_async_loop and main_async_loop.is_running():
+                        asyncio.run_coroutine_threadsafe(media_seek(pos), main_async_loop)
                 except: pass
 
         elif parsed_path.path == '/media/volume':
@@ -573,17 +789,11 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_header('Content-type', mime)
                     self.send_header('Accept-Ranges', 'bytes')
                     self.send_header('Content-Length', str(cs))
-                    self.send_header('Cache-Control', 'public, max-age=3600')
-                    if status == 206: self.send_header('Content-Range', f'bytes {s}-{e}/{size}')
-                    self.end_headers()
-                    try:
-                        with open(fp, 'rb') as f:
-                            f.seek(s); rem = cs
-                            while rem > 0:
-                                chunk = f.read(min(rem, 512 * 1024))
-                                if not chunk: break
-                                self.wfile.write(chunk); rem -= len(chunk)
-                    except: pass
+                    
+                    f = open(fp, 'rb')
+                    f.seek(s)
+                    self.wfile.write(f.read(cs))
+                    f.close()
                     return
             self.send_response(404); self.end_headers()
         else:

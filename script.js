@@ -26,6 +26,130 @@ let optimisticStatus = null;
 let lastPlayPauseTime = 0;
 let currentMediaPosition = 0;
 
+// High-precision Media Engine & WebSocket State
+let wsMedia = null;
+let isWsConnected = false;
+let mediaBasePos = 0;
+let mediaBaseTime = 0;
+let mediaStatus = "Stopped";
+let mediaDuration = 0;
+let mediaTitle = "";
+let mediaArtist = "";
+let isRafLoopRunning = false;
+
+function sendMediaAction(action, param = null) {
+    if (wsMedia && wsMedia.readyState === WebSocket.OPEN) {
+        wsMedia.send(JSON.stringify({ action: action, pos: param }));
+        return true;
+    }
+    return false;
+}
+
+function initMediaWebSocket() {
+    try {
+        wsMedia = new WebSocket("ws://127.0.0.1:25556");
+        
+        wsMedia.onopen = () => {
+            console.log("[Media Engine] Connected to real-time SMTC WebSocket!");
+            isWsConnected = true;
+            if (!isRafLoopRunning) {
+                isRafLoopRunning = true;
+                requestAnimationFrame(mediaRenderLoop);
+            }
+        };
+
+        wsMedia.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === "media_update") {
+                    handleWsMediaUpdate(data);
+                }
+            } catch (err) {
+                console.error("[Media Engine] Parse error:", err);
+            }
+        };
+
+        wsMedia.onerror = () => {
+            isWsConnected = false;
+        };
+
+        wsMedia.onclose = () => {
+            isWsConnected = false;
+            // Retry connecting after 2 seconds
+            setTimeout(initMediaWebSocket, 2000);
+        };
+    } catch (e) {
+        isWsConnected = false;
+        setTimeout(initMediaWebSocket, 2000);
+    }
+}
+
+function handleWsMediaUpdate(data) {
+    const title = data.media_title || "";
+    const artist = data.media_artist || "";
+    const status = data.media_status || "Stopped";
+    const pos = typeof data.media_position === 'number' ? data.media_position : parseFloat(data.media_position || 0);
+    const dur = typeof data.media_duration === 'number' ? data.media_duration : parseFloat(data.media_duration || 0);
+
+    mediaTitle = title;
+    mediaArtist = artist;
+    mediaStatus = status;
+    mediaDuration = dur;
+    mediaBasePos = pos;
+    mediaBaseTime = performance.now();
+    currentMediaPosition = pos;
+
+    const trackSignature = `${title}-${artist}`;
+    if (trackSignature !== currentTrackHash && title && title !== "No Media") {
+        currentTrackHash = trackSignature;
+        currentMediaPosition = 0;
+        optimisticPosition = 0;
+        mediaBasePos = 0;
+        lastSeekTime = 0;
+        currentLyricsData = [];
+        if (typeof getLyrics === 'function') {
+            getLyrics(title, artist, dur);
+        }
+    }
+
+    const playButton = document.getElementById('btn-play');
+    if (playButton) {
+        playButton.textContent = status === 'Playing' ? "[ || ]" : "[ ▶ ]";
+    }
+
+    // Direct render on state change
+    if (dur > 0) {
+        document.getElementById('duration').textContent = `[${formatTime(pos)} / ${formatTime(dur)}]`;
+        updatePlayingBar(pos, dur);
+    } else {
+        document.getElementById('duration').textContent = "[ - / - ]";
+        updatePlayingBar(0, 0);
+    }
+
+    if (typeof syncLyrics === 'function') {
+        syncLyrics(pos);
+    }
+}
+
+function mediaRenderLoop() {
+    if (isWsConnected && mediaStatus === "Playing" && mediaDuration > 0) {
+        const elapsed = (performance.now() - mediaBaseTime) / 1000;
+        const currentPos = Math.min(mediaDuration, mediaBasePos + elapsed);
+        currentMediaPosition = currentPos;
+
+        document.getElementById('duration').textContent = `[${formatTime(currentPos)} / ${formatTime(mediaDuration)}]`;
+        updatePlayingBar(currentPos, mediaDuration);
+
+        if (typeof syncLyrics === 'function') {
+            syncLyrics(currentPos);
+        }
+    }
+    requestAnimationFrame(mediaRenderLoop);
+}
+
+// Start WebSocket connection immediately
+initMediaWebSocket();
+
 let currentBgVideo = "";
 let currentBgImage = "";
 window.currentBgDim = 0.6;
@@ -257,7 +381,11 @@ if (playingBar) {
             syncLyrics(targetSeconds);
         }
         
-        fetch(`http://127.0.0.1:25555/media/seek?pos=${targetSeconds}`).catch(e => console.log(e));
+        mediaBasePos = targetSeconds;
+        mediaBaseTime = performance.now();
+        if (!sendMediaAction('seek', targetSeconds)) {
+            fetch(`http://127.0.0.1:25555/media/seek?pos=${targetSeconds}`).catch(e => console.log(e));
+        }
     });
 }
 
@@ -331,7 +459,9 @@ function fetchSystemSpecs() {
                 let isSeeking = (Date.now() - lastSeekTime < 3000);
                 let isOverriding = (optimisticStatus !== null);
 
-                if (!isSeeking && !isOverriding) { 
+                if (isWsConnected) {
+                    // WebSocket is active: media timeline and lyrics sync are handled with sub-millisecond precision
+                } else if (!isSeeking && !isOverriding) { 
                     if (data.media_position !== undefined && data.media_duration !== undefined) {
                         currentMediaPosition = parseFloat(data.media_position);
                         
@@ -1429,7 +1559,7 @@ const btnNext = document.getElementById('btn-next');
 if (btnPrev && btnPlay && btnNext) {
     btnPrev.addEventListener('click', () => {
         if (isPythonServerRunning) {
-            fetch('http://127.0.0.1:25555/media/prev?t=' + Date.now()).catch(e => console.log(e));
+            if (!sendMediaAction('prev')) { fetch('http://127.0.0.1:25555/media/prev?t=' + Date.now()).catch(e => console.log(e)); }
         } else {
             console.log("Controls disabled. Python script required to send commands to Windows.");
         }
@@ -1449,7 +1579,7 @@ if (btnPrev && btnPlay && btnNext) {
             lastPlayPauseTime = Date.now();
             lastSeekTime = Date.now(); 
             optimisticPosition = currentMediaPosition; 
-            fetch('http://127.0.0.1:25555/media/playpause?t=' + Date.now()).catch(e => console.log(e));
+            if (!sendMediaAction('playpause')) { fetch('http://127.0.0.1:25555/media/playpause?t=' + Date.now()).catch(e => console.log(e)); }
         } else {
             console.log("Controls disabled. Python script required to send commands to Windows.");
         }
@@ -1457,7 +1587,7 @@ if (btnPrev && btnPlay && btnNext) {
     
     btnNext.addEventListener('click', () => {
         if (isPythonServerRunning) {
-            fetch('http://127.0.0.1:25555/media/next?t=' + Date.now()).catch(e => console.log(e));
+            if (!sendMediaAction('next')) { fetch('http://127.0.0.1:25555/media/next?t=' + Date.now()).catch(e => console.log(e)); }
         } else {
             console.log("Controls disabled. Python script required to send commands to Windows.");
         }

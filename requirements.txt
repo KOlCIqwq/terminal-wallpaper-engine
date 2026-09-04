@@ -1,8 +1,9 @@
-psutil 
-wmi 
-pywin32 
-gpustat 
-winsdk 
+psutil
+wmi
+pywin32
+gpustat
+winsdk
 asyncio
-pycaw 
+pycaw
 comtypes
+websockets
