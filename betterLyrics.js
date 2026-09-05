@@ -85,7 +85,7 @@ async function fetchBetterLyricsAPI(title, artist, durationSeconds = -1) {
         a: artist
     });
 
-    if (durationSeconds !== -1 || durationSeconds != 0) {
+    if (typeof durationSeconds === 'number' && durationSeconds > 0) {
         params.append("d", Math.floor(durationSeconds));
     }
 
@@ -103,12 +103,14 @@ async function fetchBetterLyricsAPI(title, artist, durationSeconds = -1) {
     if (data.ttml) {
         const result = parseTTML(data.ttml);
         result.isSynced = true; // explicitly tag it as synced
+        if (data.duration) result.originalDuration = Number(data.duration);
         return result;
     } 
     // Check for Fallback Kugou format (Standard LRC)
     else if (data.lyrics && typeof parseLRC === 'function') {
         const result = parseLRC(data.lyrics);
         result.isSynced = true;
+        if (data.duration) result.originalDuration = Number(data.duration);
         return result;
     }
 

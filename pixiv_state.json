@@ -1,145 +1,215 @@
 {
     "rankings": [
         {
-            "url": "https://pixiv.cat/146066696.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/16/07/25/45/146066696_p0_master1200.jpg",
-            "title": "ホタル",
-            "user": "モ誰",
-            "link": "https://www.pixiv.net/artworks/146066696"
+            "id": 149188105,
+            "rawPath": "/img-original/img/2026/09/02/17/06/06/149188105_p0.jpg",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/17/06/06/149188105_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/17/06/06/149188105_p0.jpg",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/17/06/06/149188105_p0_master1200.jpg",
+            "title": "小开关",
+            "user": "鬼针草",
+            "link": "https://www.pixiv.net/artworks/149188105"
         },
         {
-            "url": "https://pixiv.cat/146057099.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/16/00/00/20/146057099_p0_master1200.jpg",
-            "title": "綺麗なままで",
-            "user": "Re°",
-            "link": "https://www.pixiv.net/artworks/146057099"
+            "id": 149167641,
+            "rawPath": "/img-original/img/2026/09/02/00/00/26/149167641_p0.png",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/00/00/26/149167641_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/00/00/26/149167641_p0.png",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/00/00/26/149167641_p0_master1200.jpg",
+            "title": "Skeb　ご依頼イラスト",
+            "user": "鈍色玄",
+            "link": "https://www.pixiv.net/artworks/149167641"
         },
         {
-            "url": "https://pixiv.cat/146018463.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/15/00/00/01/146018463_p0_master1200.jpg",
-            "title": "镜世界-禁区-62-路",
-            "user": "Lifeline",
-            "link": "https://www.pixiv.net/artworks/146018463"
+            "id": 149167798,
+            "rawPath": "/img-original/img/2026/09/02/00/01/17/149167798_p0.jpg",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/00/01/17/149167798_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/00/01/17/149167798_p0.jpg",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/00/01/17/149167798_p0_master1200.jpg",
+            "title": "アシェンプテル",
+            "user": "Mirage/ミラージュ",
+            "link": "https://www.pixiv.net/artworks/149167798"
         },
         {
-            "url": "https://pixiv.cat/146032845.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/15/11/22/47/146032845_p0_master1200.jpg",
-            "title": "miku 融合",
-            "user": "千夜QYS3",
-            "link": "https://www.pixiv.net/artworks/146032845"
+            "id": 149168530,
+            "rawPath": "/img-original/img/2026/09/02/00/12/37/149168530_p0.jpg",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/00/12/37/149168530_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/00/12/37/149168530_p0.jpg",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/00/12/37/149168530_p0_master1200.jpg",
+            "title": "ヴォジャニーツァ",
+            "user": "はな",
+            "link": "https://www.pixiv.net/artworks/149168530"
         },
         {
-            "url": "https://pixiv.cat/146082080.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/16/19/20/36/146082080_p0_master1200.jpg",
-            "title": "うちのカミさんがキミらのファンでね",
-            "user": "上山道郎",
-            "link": "https://www.pixiv.net/artworks/146082080"
+            "id": 149205983,
+            "rawPath": "/img-original/img/2026/09/03/00/12/38/149205983_p0.png",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/03/00/12/38/149205983_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/03/00/12/38/149205983_p0.png",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/03/00/12/38/149205983_p0_master1200.jpg",
+            "title": "Arcaea",
+            "user": "すずなし",
+            "link": "https://www.pixiv.net/artworks/149205983"
         },
         {
-            "url": "https://pixiv.cat/146046706.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/15/20/18/17/146046706_p0_master1200.jpg",
-            "title": "執行官女子会パジャマパーティー",
-            "user": "改原ユノ",
-            "link": "https://www.pixiv.net/artworks/146046706"
+            "id": 149184832,
+            "rawPath": "/img-original/img/2026/09/02/14/31/04/149184832_p0.jpg",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/14/31/04/149184832_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/14/31/04/149184832_p0.jpg",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/14/31/04/149184832_p0_master1200.jpg",
+            "title": "はつねみく",
+            "user": "saki",
+            "link": "https://www.pixiv.net/artworks/149184832"
         },
         {
-            "url": "https://pixiv.cat/146078735.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/16/17/41/04/146078735_p0_master1200.jpg",
-            "title": "竜神さま雨を降らせて☔",
-            "user": "まころんデザフェス63F137",
-            "link": "https://www.pixiv.net/artworks/146078735"
-        },
-        {
-            "url": "https://pixiv.cat/146090640.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/16/22/33/27/146090640_p0_master1200.jpg",
-            "title": "プロセカまとめ",
-            "user": "ネウちゃう",
-            "link": "https://www.pixiv.net/artworks/146090640"
-        },
-        {
-            "url": "https://pixiv.cat/146039171.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/15/16/30/29/146039171_p0_master1200.jpg",
-            "title": "PHMまとめ",
-            "user": "とげ",
-            "link": "https://www.pixiv.net/artworks/146039171"
-        },
-        {
-            "url": "https://pixiv.cat/146021759.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/15/01/01/56/146021759_p0_master1200.jpg",
-            "title": "睡眠~",
-            "user": "イブ🌧",
-            "link": "https://www.pixiv.net/artworks/146021759"
-        },
-        {
-            "url": "https://pixiv.cat/146026944.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/15/05/27/16/146026944_p0_master1200.jpg",
-            "title": "dream crossover",
-            "user": "Snegovski🦖",
-            "link": "https://www.pixiv.net/artworks/146026944"
-        },
-        {
-            "url": "https://pixiv.cat/146056471.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/15/23/48/55/146056471_p0_master1200.jpg",
-            "title": "오싹오싹",
+            "id": 149173638,
+            "rawPath": "/img-original/img/2026/09/02/03/29/37/149173638_p0.jpg",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/03/29/37/149173638_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/03/29/37/149173638_p0.jpg",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/03/29/37/149173638_p0_master1200.jpg",
+            "title": "LCE 파자마 파티",
             "user": "제육볶음",
-            "link": "https://www.pixiv.net/artworks/146056471"
+            "link": "https://www.pixiv.net/artworks/149173638"
         },
         {
-            "url": "https://pixiv.cat/146060230.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/16/01/11/43/146060230_p0_master1200.jpg",
-            "title": "DAY50",
-            "user": "CAISENA",
-            "link": "https://www.pixiv.net/artworks/146060230"
+            "id": 149192486,
+            "rawPath": "/img-original/img/2026/09/02/19/38/03/149192486_p0.png",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/19/38/03/149192486_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/19/38/03/149192486_p0.png",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/19/38/03/149192486_p0_master1200.jpg",
+            "title": "🦋🔥🏮 Hutao × Sparkle",
+            "user": "河地りん| C104 2日目東",
+            "link": "https://www.pixiv.net/artworks/149192486"
         },
         {
-            "url": "https://pixiv.cat/146087299.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/16/21/24/06/146087299_p0_master1200.jpg",
-            "title": "🦊🐰🐙デトロイトパロ",
-            "user": "律空rikuu",
-            "link": "https://www.pixiv.net/artworks/146087299"
+            "id": 149193952,
+            "rawPath": "/img-original/img/2026/09/02/20/00/08/149193952_p0.png",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/20/00/08/149193952_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/20/00/08/149193952_p0.png",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/20/00/08/149193952_p0_master1200.jpg",
+            "title": "冥府の河神",
+            "user": "レルビィ/Reluvy",
+            "link": "https://www.pixiv.net/artworks/149193952"
         },
         {
-            "url": "https://pixiv.cat/146085132.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/16/20/38/28/146085132_p0_master1200.jpg",
-            "title": "💖cm💖",
-            "user": "YHM",
-            "link": "https://www.pixiv.net/artworks/146085132"
+            "id": 149182048,
+            "rawPath": "/img-original/img/2026/09/02/12/11/43/149182048_p0.png",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/12/11/43/149182048_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/12/11/43/149182048_p0.png",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/12/11/43/149182048_p0_master1200.jpg",
+            "title": "✏️🍀",
+            "user": "ユカン",
+            "link": "https://www.pixiv.net/artworks/149182048"
         },
         {
-            "url": "https://pixiv.cat/146060386.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/16/01/17/45/146060386_p0_master1200.jpg",
-            "title": "DAY58",
-            "user": "CAISENA",
-            "link": "https://www.pixiv.net/artworks/146060386"
+            "id": 149167615,
+            "rawPath": "/img-original/img/2026/09/02/00/00/21/149167615_p0.png",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/00/00/21/149167615_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/00/00/21/149167615_p0.png",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/00/00/21/149167615_p0_master1200.jpg",
+            "title": "深閑",
+            "user": "Nengoro(ネんごろぅ)",
+            "link": "https://www.pixiv.net/artworks/149167615"
         },
         {
-            "url": "https://pixiv.cat/146060082.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/16/01/07/11/146060082_p0_master1200.jpg",
-            "title": "DAY46",
-            "user": "CAISENA",
-            "link": "https://www.pixiv.net/artworks/146060082"
+            "id": 149167638,
+            "rawPath": "/img-original/img/2026/09/02/00/00/25/149167638_p0.jpg",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/00/00/25/149167638_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/00/00/25/149167638_p0.jpg",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/00/00/25/149167638_p0_master1200.jpg",
+            "title": "テノチティトラン（水着）",
+            "user": "我美蘭＠1日目東3ア69b",
+            "link": "https://www.pixiv.net/artworks/149167638"
         },
         {
-            "url": "https://pixiv.cat/146060363.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/16/01/16/37/146060363_p0_master1200.jpg",
-            "title": "DAY57",
-            "user": "CAISENA",
-            "link": "https://www.pixiv.net/artworks/146060363"
+            "id": 149199140,
+            "rawPath": "/img-original/img/2026/09/02/21/50/03/149199140_p0.jpg",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/21/50/03/149199140_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/21/50/03/149199140_p0.jpg",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/21/50/03/149199140_p0_master1200.jpg",
+            "title": "夏のドライブ",
+            "user": "虎徹",
+            "link": "https://www.pixiv.net/artworks/149199140"
         },
         {
-            "url": "https://pixiv.cat/146083226.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/16/19/55/21/146083226_p0_master1200.jpg",
-            "title": "엄지듀오",
-            "user": "제육볶음",
-            "link": "https://www.pixiv.net/artworks/146083226"
+            "id": 149170250,
+            "rawPath": "/img-original/img/2026/09/02/00/59/19/149170250_p0.png",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/00/59/19/149170250_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/00/59/19/149170250_p0.png",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/00/59/19/149170250_p0_master1200.jpg",
+            "title": "Steel Ball Run",
+            "user": "Fishine / 魚生",
+            "link": "https://www.pixiv.net/artworks/149170250"
         },
         {
-            "url": "https://pixiv.cat/146060269.jpg",
-            "thumb": "https://i.pixiv.cat/c/540x540_70/img-master/img/2026/06/16/01/12/57/146060269_p0_master1200.jpg",
-            "title": "DAY52",
-            "user": "CAISENA",
-            "link": "https://www.pixiv.net/artworks/146060269"
+            "id": 149191963,
+            "rawPath": "/img-original/img/2026/09/02/19/04/08/149191963_p0.jpg",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/19/04/08/149191963_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/19/04/08/149191963_p0.jpg",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/19/04/08/149191963_p0_master1200.jpg",
+            "title": "唱给晴天，唱给海，唱给恰好路过的你。",
+            "user": "鱼鹅BABA",
+            "link": "https://www.pixiv.net/artworks/149191963"
+        },
+        {
+            "id": 149171921,
+            "rawPath": "/img-original/img/2026/09/02/02/00/35/149171921_p0.png",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/02/00/35/149171921_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/02/00/35/149171921_p0.png",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/02/00/35/149171921_p0_master1200.jpg",
+            "title": "モナ生誕祭2026",
+            "user": "キョウ屋斎",
+            "link": "https://www.pixiv.net/artworks/149171921"
+        },
+        {
+            "id": 149169673,
+            "rawPath": "/img-original/img/2026/09/02/00/39/49/149169673_p0.png",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/00/39/49/149169673_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/00/39/49/149169673_p0.png",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/00/39/49/149169673_p0_master1200.jpg",
+            "title": "Giovanna (Custom outfit)",
+            "user": "Eigaka",
+            "link": "https://www.pixiv.net/artworks/149169673"
+        },
+        {
+            "id": 149205022,
+            "rawPath": "/img-original/img/2026/09/03/00/00/08/149205022_p0.jpg",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/03/00/00/08/149205022_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/03/00/00/08/149205022_p0.jpg",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/03/00/00/08/149205022_p0_master1200.jpg",
+            "title": "-3.6-",
+            "user": "超凶の狄璐卡",
+            "link": "https://www.pixiv.net/artworks/149205022"
+        },
+        {
+            "id": 149178139,
+            "rawPath": "/img-original/img/2026/09/02/08/26/34/149178139_p0.jpg",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/08/26/34/149178139_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/08/26/34/149178139_p0.jpg",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/08/26/34/149178139_p0_master1200.jpg",
+            "title": "Rias",
+            "user": "Melowh",
+            "link": "https://www.pixiv.net/artworks/149178139"
+        },
+        {
+            "id": 149177961,
+            "rawPath": "/img-original/img/2026/09/02/08/14/46/149177961_p0.jpg",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/08/14/46/149177961_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/08/14/46/149177961_p0.jpg",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/08/14/46/149177961_p0_master1200.jpg",
+            "title": "チャンピオンズ シーズンM-Bお疲れ様会",
+            "user": "津軽産あっぷる",
+            "link": "https://www.pixiv.net/artworks/149177961"
+        },
+        {
+            "id": 149189336,
+            "rawPath": "/img-original/img/2026/09/02/17/55/04/149189336_p0.png",
+            "rawThumb": "/c/540x540_70/img-master/img/2026/09/02/17/55/04/149189336_p0_master1200.jpg",
+            "url": "https://pixiv.canaria.cc/img-original/img/2026/09/02/17/55/04/149189336_p0.png",
+            "thumb": "https://proxy.pixiv.shojo.cn/c/540x540_70/img-master/img/2026/09/02/17/55/04/149189336_p0_master1200.jpg",
+            "title": "ティフォロス💜",
+            "user": "Kairasii4",
+            "link": "https://www.pixiv.net/artworks/149189336"
         }
     ],
-    "index": 0
+    "index": 8
 }

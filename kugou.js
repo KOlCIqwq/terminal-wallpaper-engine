@@ -2,6 +2,32 @@
 
 const KUGOU_DURATION_TOLERANCE = 8; // seconds
 
+function isArtistMatch(artist1, artist2) {
+    if (!artist1 || !artist2) return false;
+    const norm = (s) => String(s).toLowerCase()
+        .replace(/['’`]/g, '')
+        .replace(/[\.\,\/\\_\-\(\)\[\]]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const a1 = norm(artist1);
+    const a2 = norm(artist2);
+    if (a1 === a2) return true;
+
+    const splitRegex = /\s*(?:,|&|\+|\/|(?:\s+and\s+)|\s+ft\.?\s+|\s+feat\.?\s+|\s+featuring\s+|\s+with\s+|\s+x\s+)\s*/i;
+    const parts1 = a1.split(splitRegex).map(s => s.trim()).filter(Boolean);
+    const parts2 = a2.split(splitRegex).map(s => s.trim()).filter(Boolean);
+
+    for (const p1 of parts1) {
+        for (const p2 of parts2) {
+            if (p1.length >= 2 && p2.length >= 2) {
+                if (p1 === p2 || p1.includes(p2) || p2.includes(p1)) return true;
+            }
+        }
+    }
+    return false;
+}
+
 function normalizeKugouText(text) {
     if (!text) return "";
     
@@ -54,11 +80,17 @@ async function fetchKugouLyricsAPI(title, artist, durationSeconds = -1) {
         const searchData = await searchRes.json();
 
         let targetHash = null;
+        let matchedDuration = -1;
 
         if (searchData && searchData.data && searchData.data.info) {
             for (const song of searchData.data.info) {
+                const singer = song.singername || "";
+                if (singer && !isArtistMatch(singer, artist)) {
+                    continue;
+                }
                 if (durationSeconds === -1 || Math.abs(song.duration - durationSeconds) <= KUGOU_DURATION_TOLERANCE) {
                     targetHash = song.hash;
+                    matchedDuration = song.duration;
                     break;
                 }
             }
@@ -87,7 +119,7 @@ async function fetchKugouLyricsAPI(title, artist, durationSeconds = -1) {
             const fbRes = await fetch(fallbackUrl);
             const fbData = await fbRes.json();
             if (fbData && fbData.candidates && fbData.candidates.length > 0) {
-                candidate = fbData.candidates[0];
+                candidate = fbData.candidates.find(c => isArtistMatch(c.singer, artist)) || null;
             }
         }
 
@@ -101,7 +133,10 @@ async function fetchKugouLyricsAPI(title, artist, durationSeconds = -1) {
 
         if (dlData && dlData.content) {
             const rawLrc = decodeBase64UTF8(dlData.content);
-            return filterKugouLrc(rawLrc);
+            const filtered = filterKugouLrc(rawLrc);
+            const ret = new String(filtered);
+            ret.duration = matchedDuration > 0 ? matchedDuration : (candidate && candidate.duration ? candidate.duration : -1);
+            return ret;
         }
         
         return null;

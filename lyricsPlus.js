@@ -1,10 +1,5 @@
 const LYRICS_PLUS_ENDPOINTS = [
-    "https://lyricsplus.prjktla.my.id",
-    "https://lyricsplus.prjktla.workers.dev",
-    "https://lyrics.binimum.org",
-    "https://lyricsplus.atomix.one",
-    "https://lyricsplus-seven.vercel.app",
-    "https://lyrics-plus-backend.vercel.app"
+    "https://lyricsplus.prjktla.my.id"
 ];
 
 
@@ -43,15 +38,21 @@ function parseLyricsPlus(jsonResponse) {
 
     result.push({ time: 9999, text: ' ' }); // End padding
     result.isSynced = isSynced;
+    if (jsonResponse && jsonResponse.duration) {
+        result.originalDuration = jsonResponse.duration > 1000 ? jsonResponse.duration / 1000 : jsonResponse.duration;
+    }
     return result;
 }
 
-async function fetchLyricsPlusAPI(title, artist) {
+async function fetchLyricsPlusAPI(title, artist, durationSeconds = -1) {
     const params = new URLSearchParams({
         title: title,
         artist: artist,
         source: "apple,lyricsplus,musixmatch,spotify,musixmatch-word"
     });
+    if (typeof durationSeconds === 'number' && durationSeconds > 0) {
+        params.append("duration", Math.floor(durationSeconds));
+    }
 
     const queryStr = params.toString();
 

@@ -8,6 +8,7 @@ let isPixivLoading = false;
 let lastPixivAction = Date.now();
 let pixivManualMode = false;
 let favModeActive = localStorage.getItem('pixiv_fav_mode') === 'true';
+let isRestoredFromCache = false;
 
 // Load Blacklist from localStorage
 let pixivBlacklist = new Set(JSON.parse(localStorage.getItem('pixiv_blacklist') || "[]"));
@@ -118,6 +119,8 @@ async function loadPixivState() {
             // but for now just apply what we restored.
             if (!favModeActive) {
                 applyPixivBackground();
+                isRestoredFromCache = true;
+                lastPixivAction = Date.now();
             }
             return true;
         }
@@ -229,18 +232,33 @@ async function fetchPixivRanking() {
         
         // Deduplicate
         const seenUrls = new Set();
-        pixivRankings = allRankings.filter(item => {
+        const freshRankings = allRankings.filter(item => {
             if (seenUrls.has(item.url)) return false;
             seenUrls.add(item.url);
             return true;
         });
 
-        if (pixivRankings.length > 0) {
-            if (pixivShuffle) pixivRankings.sort(() => Math.random() - 0.5);
-            pixivCurrentIndex = 0;
-            appendLog(`[PIXIV] Successfully loaded ${pixivRankings.length} wallpapers.`);
-            applyPixivBackground();
-            savePixivState(); // Persist to Python
+        if (freshRankings.length > 0) {
+            if (pixivShuffle) freshRankings.sort(() => Math.random() - 0.5);
+
+            if (isRestoredFromCache && pixivRankings.length > 0) {
+                const currentIllust = pixivRankings[pixivCurrentIndex];
+                const currentId = currentIllust ? currentIllust.id : null;
+                const foundIndex = currentId ? freshRankings.findIndex(item => item.id === currentId) : -1;
+
+                pixivRankings = freshRankings;
+                if (foundIndex !== -1) {
+                    pixivCurrentIndex = foundIndex;
+                }
+                appendLog(`[PIXIV] Updated queue (${pixivRankings.length} wallpapers). Keeping cached wallpaper until next interval.`);
+                savePixivState();
+            } else {
+                pixivRankings = freshRankings;
+                pixivCurrentIndex = 0;
+                appendLog(`[PIXIV] Successfully loaded ${pixivRankings.length} wallpapers.`);
+                applyPixivBackground();
+                savePixivState();
+            }
         } else {
             fetchAlternativeRanking();
         }
@@ -282,11 +300,25 @@ function fetchAlternativeRanking() {
 
                 if (horizontalFallback.length > 0) {
                     if (pixivShuffle) horizontalFallback.sort(() => Math.random() - 0.5);
-                    pixivRankings = horizontalFallback;
-                    pixivCurrentIndex = 0;
-                    applyPixivBackground();
-                    appendLog(`[PIXIV] Fallback successful: Found ${pixivRankings.length} images.`);
-                    savePixivState();
+
+                    if (isRestoredFromCache && pixivRankings.length > 0) {
+                        const currentIllust = pixivRankings[pixivCurrentIndex];
+                        const currentId = currentIllust ? currentIllust.id : null;
+                        const foundIndex = currentId ? horizontalFallback.findIndex(item => item.id === currentId) : -1;
+
+                        pixivRankings = horizontalFallback;
+                        if (foundIndex !== -1) {
+                            pixivCurrentIndex = foundIndex;
+                        }
+                        appendLog(`[PIXIV] Fallback ranking refreshed (${pixivRankings.length} images). Keeping cached wallpaper until next interval.`);
+                        savePixivState();
+                    } else {
+                        pixivRankings = horizontalFallback;
+                        pixivCurrentIndex = 0;
+                        applyPixivBackground();
+                        appendLog(`[PIXIV] Fallback successful: Found ${pixivRankings.length} images.`);
+                        savePixivState();
+                    }
                 } else {
                     appendLog("[PIXIV] Fallback returned no horizontal images.");
                 }
@@ -386,6 +418,7 @@ function updatePixivDim() {
 
 function nextPixivWallpaper() {
     if (!window.pixivEnabled) return;
+    isRestoredFromCache = false;
     
     if (favModeActive && pixivFavorites.length > 0) {
         pixivCurrentIndex = (pixivCurrentIndex + 1) % pixivFavorites.length;
