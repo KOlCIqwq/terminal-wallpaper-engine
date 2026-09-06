@@ -1,5 +1,5 @@
 const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d', {willReadFrequently: true});
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
 const asciiOutput = document.getElementById('asciiOutput');
 const asciiCtx = asciiOutput.getContext('2d');
@@ -7,9 +7,388 @@ const asciiCtx = asciiOutput.getContext('2d');
 const density = "Ñ@#W$9876543210?!abc;:+=-,._ ";
 const densityLen = density.length - 1;
 
+// Matrix character pool: cyber runes, numbers, letters, half-width katakana
+const MATRIX_CHARS = "0123456789ABCDEF:;*+-<>~/$#&%ｦｱｳｴｵｶｷｹｺｻｼｽｾｿﾀﾂﾃﾅﾆﾇﾈﾊﾋﾎﾏﾐﾑﾒﾓﾔﾕﾗﾘﾜ";
+const MATRIX_CHARS_LEN = MATRIX_CHARS.length;
+
 let currentImageSize = 500;
 let currentFontSize = 8;
 let currentThumbnailBase64 = null;
+let currentTransitionStyle = 'rain'; // 'rain', 'glitch', 'none'
+let currentTransitionDuration = 1200; // ms
+
+let activeGrid = null;
+let activeAnimationId = null;
+
+// AsciiGrid representation: flat typed arrays for zero-GC 60fps rendering
+class AsciiGrid {
+    constructor(width, height, charWidth, charHeight) {
+        this.width = width;
+        this.height = height;
+        this.charWidth = charWidth;
+        this.charHeight = charHeight;
+        this.pixelWidth = width * charWidth;
+        this.pixelHeight = height * charHeight;
+        const size = width * height;
+        this.chars = new Array(size);
+        this.r = new Uint8Array(size);
+        this.g = new Uint8Array(size);
+        this.b = new Uint8Array(size);
+        this.brightness = new Uint8Array(size);
+        this.active = new Uint8Array(size);
+    }
+}
+
+function cancelCurrentTransition() {
+    if (activeAnimationId) {
+        cancelAnimationFrame(activeAnimationId);
+        activeAnimationId = null;
+    }
+}
+
+function createAsciiGridFromImage(img, targetWidthPixels, fontSize) {
+    const charWidth = fontSize * 0.6;
+    const charHeight = fontSize * 0.65;
+    
+    const asciiWidth = Math.max(1, Math.floor(targetWidthPixels / charWidth));
+    const scaleFactor = asciiWidth / img.width;
+    const asciiHeight = Math.max(1, Math.floor(img.height * scaleFactor));
+
+    canvas.width = asciiWidth;
+    canvas.height = asciiHeight;
+    ctx.drawImage(img, 0, 0, asciiWidth, asciiHeight);
+
+    const imageData = ctx.getImageData(0, 0, asciiWidth, asciiHeight);
+    const pixels = imageData.data;
+    
+    const grid = new AsciiGrid(asciiWidth, asciiHeight, charWidth, charHeight);
+
+    for (let y = 0; y < asciiHeight; y++) {
+        for (let x = 0; x < asciiWidth; x++) {
+            const idx = y * asciiWidth + x;
+            const offset = idx * 4;
+            const r = pixels[offset];
+            const g = pixels[offset + 1];
+            const b = pixels[offset + 2];
+            const a = pixels[offset + 3];
+
+            if (a < 25) {
+                grid.chars[idx] = " ";
+                grid.active[idx] = 0;
+                continue;
+            }
+
+            const brightness = Math.floor((r * 299 + g * 587 + b * 114) / 1000);
+            const charIndex = Math.floor((brightness / 255) * densityLen);
+            const char = density[charIndex];
+
+            grid.chars[idx] = char;
+            grid.r[idx] = r;
+            grid.g[idx] = g;
+            grid.b[idx] = b;
+            grid.brightness[idx] = brightness;
+            grid.active[idx] = (char !== " ") ? 1 : 0;
+        }
+    }
+
+    return grid;
+}
+
+function renderGridInstantly(grid) {
+    asciiOutput.width = grid.pixelWidth;
+    asciiOutput.height = grid.pixelHeight;
+    
+    asciiCtx.clearRect(0, 0, asciiOutput.width, asciiOutput.height);
+    asciiCtx.font = 'bold ' + currentFontSize + 'px Consolas, "Courier New", monospace';
+    asciiCtx.textBaseline = 'top';
+
+    let lastFill = "";
+    for (let y = 0; y < grid.height; y++) {
+        const py = y * grid.charHeight;
+        for (let x = 0; x < grid.width; x++) {
+            const idx = y * grid.width + x;
+            if (!grid.active[idx]) continue;
+
+            const fill = 'rgb(' + grid.r[idx] + ',' + grid.g[idx] + ',' + grid.b[idx] + ')';
+            if (fill !== lastFill) {
+                asciiCtx.fillStyle = fill;
+                lastFill = fill;
+            }
+            asciiCtx.fillText(grid.chars[idx], x * grid.charWidth, py);
+        }
+    }
+}
+
+function runRainTransition(oldGrid, newGrid, duration, startTime) {
+    const cols = newGrid.width;
+    const rows = newGrid.height;
+    
+    const colDelays = new Float32Array(cols);
+    const colSpeeds = new Float32Array(cols);
+    const colTrails = new Uint8Array(cols);
+
+    for (let x = 0; x < cols; x++) {
+        colDelays[x] = Math.random() * 0.35;
+        colSpeeds[x] = 0.85 + Math.random() * 0.35;
+        colTrails[x] = 10 + Math.floor(Math.random() * 8);
+    }
+
+    function frame(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(1, elapsed / duration);
+
+        asciiCtx.clearRect(0, 0, asciiOutput.width, asciiOutput.height);
+        asciiCtx.font = 'bold ' + currentFontSize + 'px Consolas, "Courier New", monospace';
+        asciiCtx.textBaseline = 'top';
+
+        const frameSeed = (elapsed / 45) | 0;
+        let lastFill = "";
+
+        for (let x = 0; x < cols; x++) {
+            const delay = colDelays[x];
+            const speed = colSpeeds[x];
+            const trail = colTrails[x];
+
+            const tCol = Math.max(0, Math.min(1, (progress - delay) / (0.65 * speed)));
+            const headY = tCol * (rows + trail + 6) - 4;
+            const px = x * newGrid.charWidth;
+
+            for (let y = 0; y < rows; y++) {
+                const newIdx = y * cols + x;
+                const py = y * newGrid.charHeight;
+
+                const oldX = Math.floor(x * (oldGrid.width / cols));
+                const oldY = Math.floor(y * (oldGrid.height / rows));
+                const oldIdx = oldY * oldGrid.width + oldX;
+
+                const hasOld = oldGrid.active[oldIdx];
+                const hasNew = newGrid.active[newIdx];
+                if (!hasOld && !hasNew) continue;
+
+                let char = " ";
+                let r = 0, g = 0, b = 0;
+
+                if (y > headY + 2) {
+                    // Zone 1: Unreached - old image intact
+                    if (!hasOld) continue;
+                    char = oldGrid.chars[oldIdx];
+                    r = oldGrid.r[oldIdx];
+                    g = oldGrid.g[oldIdx];
+                    b = oldGrid.b[oldIdx];
+                } else if (y >= headY - 1 && y <= headY + 2) {
+                    // Zone 2: Rain Head - old image breaks into glowing phosphor Matrix glyph
+                    char = MATRIX_CHARS[(x * 31 + y * 17 + frameSeed) % MATRIX_CHARS_LEN];
+                    r = 210; g = 255; b = 220;
+                } else if (y >= headY - trail && y < headY - 1) {
+                    // Zone 3: Matrix Rain Stream
+                    const dist = (headY - 1) - y;
+                    const trailRatio = dist / trail;
+
+                    char = MATRIX_CHARS[(x * 23 + y * 43 + frameSeed) % MATRIX_CHARS_LEN];
+
+                    const lum = hasNew ? newGrid.brightness[newIdx] : (hasOld ? oldGrid.brightness[oldIdx] : 120);
+                    const lumFactor = 0.35 + 0.65 * (lum / 255);
+
+                    r = Math.round((25 * (1 - trailRatio)) * lumFactor);
+                    g = Math.round((255 - 130 * trailRatio) * lumFactor);
+                    b = Math.round((55 * (1 - trailRatio)) * lumFactor);
+                } else {
+                    // Zone 4: Recomposition Zone behind the trail
+                    if (!hasNew) continue;
+                    const distPastTrail = (headY - trail) - y;
+                    const rebuild = Math.min(1, distPastTrail / 7);
+
+                    const targetR = newGrid.r[newIdx];
+                    const targetG = newGrid.g[newIdx];
+                    const targetB = newGrid.b[newIdx];
+
+                    if (rebuild < 0.6) {
+                        char = (rebuild > 0.3 && ((x + y + frameSeed) % 2 === 0))
+                            ? newGrid.chars[newIdx]
+                            : MATRIX_CHARS[(x * 19 + y * 29 + frameSeed) % MATRIX_CHARS_LEN];
+
+                        r = Math.round(targetR * rebuild);
+                        g = Math.round(180 * (1 - rebuild) + targetG * rebuild);
+                        b = Math.round(40 * (1 - rebuild) + targetB * rebuild);
+                    } else {
+                        char = newGrid.chars[newIdx];
+                        const bloom = (rebuild - 0.6) / 0.4;
+                        r = Math.round(targetR * (0.7 + 0.3 * bloom));
+                        g = Math.round(targetG * (0.7 + 0.3 * bloom));
+                        b = Math.round(targetB * (0.7 + 0.3 * bloom));
+                    }
+                }
+
+                if (char !== " ") {
+                    const fill = 'rgb(' + r + ',' + g + ',' + b + ')';
+                    if (fill !== lastFill) {
+                        asciiCtx.fillStyle = fill;
+                        lastFill = fill;
+                    }
+                    asciiCtx.fillText(char, px, py);
+                }
+            }
+        }
+
+        if (progress < 1) {
+            activeAnimationId = requestAnimationFrame(frame);
+        } else {
+            activeAnimationId = null;
+            renderGridInstantly(newGrid);
+        }
+    }
+
+    activeAnimationId = requestAnimationFrame(frame);
+}
+
+function runGlitchTransition(oldGrid, newGrid, duration, startTime) {
+    const cols = newGrid.width;
+    const rows = newGrid.height;
+    const totalCells = cols * rows;
+
+    const breakThresholds = new Float32Array(totalCells);
+    const rebuildThresholds = new Float32Array(totalCells);
+
+    for (let i = 0; i < totalCells; i++) {
+        breakThresholds[i] = Math.random() * 0.32;
+        rebuildThresholds[i] = Math.random() * 0.35;
+    }
+
+    function frame(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(1, elapsed / duration);
+
+        asciiCtx.clearRect(0, 0, asciiOutput.width, asciiOutput.height);
+        asciiCtx.font = 'bold ' + currentFontSize + 'px Consolas, "Courier New", monospace';
+        asciiCtx.textBaseline = 'top';
+
+        const frameSeed = (elapsed / 45) | 0;
+        let lastFill = "";
+
+        const hasScanlineGlitch = (frameSeed % 7 === 0) && progress < 0.8;
+        const glitchRow = hasScanlineGlitch ? ((frameSeed * 13) % rows) : -1;
+        const glitchShift = hasScanlineGlitch ? (((frameSeed % 3) - 1) * newGrid.charWidth * 1.5) : 0;
+
+        for (let y = 0; y < rows; y++) {
+            const py = y * newGrid.charHeight;
+            const isGlitchLine = (y === glitchRow);
+
+            for (let x = 0; x < cols; x++) {
+                const newIdx = y * cols + x;
+                const px = x * newGrid.charWidth + (isGlitchLine ? glitchShift : 0);
+
+                const oldX = Math.floor(x * (oldGrid.width / cols));
+                const oldY = Math.floor(y * (oldGrid.height / rows));
+                const oldIdx = oldY * oldGrid.width + oldX;
+
+                const hasOld = oldGrid.active[oldIdx];
+                const hasNew = newGrid.active[newIdx];
+                if (!hasOld && !hasNew) continue;
+
+                let char = " ";
+                let r = 0, g = 0, b = 0;
+
+                if (progress < 0.35) {
+                    const t1 = progress / 0.35;
+                    const breakThresh = breakThresholds[newIdx];
+
+                    if (t1 < breakThresh) {
+                        if (!hasOld) continue;
+                        char = oldGrid.chars[oldIdx];
+                        r = oldGrid.r[oldIdx];
+                        g = oldGrid.g[oldIdx];
+                        b = oldGrid.b[oldIdx];
+                    } else {
+                        const localBreak = (t1 - breakThresh) / (1 - breakThresh + 0.001);
+                        char = MATRIX_CHARS[(x * 19 + y * 31 + frameSeed) % MATRIX_CHARS_LEN];
+
+                        const oldR = hasOld ? oldGrid.r[oldIdx] : 0;
+                        const oldG = hasOld ? oldGrid.g[oldIdx] : 180;
+                        const oldB = hasOld ? oldGrid.b[oldIdx] : 40;
+
+                        r = Math.round(oldR * (1 - localBreak));
+                        g = Math.round(oldG * (1 - localBreak) + 230 * localBreak);
+                        b = Math.round(oldB * (1 - localBreak) + 50 * localBreak);
+                    }
+                } else if (progress <= 0.65) {
+                    const t2 = (progress - 0.35) / 0.30;
+                    char = MATRIX_CHARS[(x * 23 + y * 37 + frameSeed) % MATRIX_CHARS_LEN];
+
+                    const bOld = hasOld ? oldGrid.brightness[oldIdx] : 100;
+                    const bNew = hasNew ? newGrid.brightness[newIdx] : 100;
+                    const lum = bOld * (1 - t2) + bNew * t2;
+                    const intensity = 0.35 + 0.65 * (lum / 255);
+
+                    if ((x * 17 + y * 29 + frameSeed) % 31 === 0) {
+                        r = 210; g = 255; b = 220;
+                    } else {
+                        r = Math.round(20 * intensity);
+                        g = Math.round(240 * intensity);
+                        b = Math.round(50 * intensity);
+                    }
+                } else {
+                    const t3 = (progress - 0.65) / 0.35;
+                    const rebuildThresh = rebuildThresholds[newIdx];
+
+                    if (t3 < rebuildThresh) {
+                        char = MATRIX_CHARS[(x * 29 + y * 13 + frameSeed) % MATRIX_CHARS_LEN];
+                        const lum = hasNew ? newGrid.brightness[newIdx] : 120;
+                        const intensity = 0.35 + 0.65 * (lum / 255);
+                        r = Math.round(15 * intensity);
+                        g = Math.round(220 * intensity);
+                        b = Math.round(40 * intensity);
+                    } else {
+                        if (!hasNew) continue;
+                        char = newGrid.chars[newIdx];
+                        const bloom = (t3 - rebuildThresh) / (1 - rebuildThresh + 0.001);
+
+                        const targetR = newGrid.r[newIdx];
+                        const targetG = newGrid.g[newIdx];
+                        const targetB = newGrid.b[newIdx];
+
+                        r = Math.round(targetR * bloom);
+                        g = Math.round(200 * (1 - bloom) + targetG * bloom);
+                        b = Math.round(40 * (1 - bloom) + targetB * bloom);
+                    }
+                }
+
+                if (char !== " ") {
+                    const fill = 'rgb(' + r + ',' + g + ',' + b + ')';
+                    if (fill !== lastFill) {
+                        asciiCtx.fillStyle = fill;
+                        lastFill = fill;
+                    }
+                    asciiCtx.fillText(char, px, py);
+                }
+            }
+        }
+
+        if (progress < 1) {
+            activeAnimationId = requestAnimationFrame(frame);
+        } else {
+            activeAnimationId = null;
+            renderGridInstantly(newGrid);
+        }
+    }
+
+    activeAnimationId = requestAnimationFrame(frame);
+}
+
+function startTransition(oldGrid, newGrid, style, duration) {
+    cancelCurrentTransition();
+    activeGrid = newGrid;
+
+    asciiOutput.width = newGrid.pixelWidth;
+    asciiOutput.height = newGrid.pixelHeight;
+
+    const startTime = performance.now();
+
+    if (style === 'glitch') {
+        runGlitchTransition(oldGrid, newGrid, duration, startTime);
+    } else {
+        runRainTransition(oldGrid, newGrid, duration, startTime);
+    }
+}
 
 window.myPropertyHandlers = window.myPropertyHandlers || [];
 
@@ -20,9 +399,6 @@ if (!window.wallpaperPropertyListener) {
         }
     };
 }
-
-// Push the ASCII slider logic into the shared hub
-window.myPropertyHandlers = window.myPropertyHandlers || [];
 
 window.myPropertyHandlers.push(function(properties) {
     let redrawNeeded = false;
@@ -35,24 +411,46 @@ window.myPropertyHandlers.push(function(properties) {
         currentFontSize = parseInt(properties.ascii_fontsize.value); 
         redrawNeeded = true;
     }
+    if (properties.ascii_transition_effect) {
+        const val = properties.ascii_transition_effect.value;
+        if (typeof val === 'string') {
+            currentTransitionStyle = val;
+        } else if (typeof val === 'number') {
+            const styles = ['rain', 'glitch', 'none'];
+            currentTransitionStyle = styles[val] || 'rain';
+        }
+    }
+    if (properties.ascii_transition_duration) {
+        const val = parseFloat(properties.ascii_transition_duration.value);
+        if (!isNaN(val) && val > 0) {
+            currentTransitionDuration = val < 10 ? Math.round(val * 1000) : Math.round(val);
+        }
+    }
 
     if (redrawNeeded && currentThumbnailBase64) {
-        generateAscii(currentThumbnailBase64);
+        generateAscii(currentThumbnailBase64, true);
     }
 });
 
-// Listen for Track/Thumbnail Changes
-window.wallpaperRegisterMediaThumbnailListener((event) => {
+// Single listener for Track/Thumbnail Changes
+if (window.wallpaperRegisterMediaThumbnailListener) {
+    window.wallpaperRegisterMediaThumbnailListener((event) => {
     if (event.thumbnail) {
+        if (event.thumbnail === currentThumbnailBase64) return;
         currentThumbnailBase64 = event.thumbnail;
         generateAscii(currentThumbnailBase64);
-        extractAndApplyColors(currentThumbnailBase64);
+
+        if (!window.useCustomColors) {
+            extractAndApplyColors(currentThumbnailBase64);
+        }
     } else {
-        // Clear the canvas if there is no image
+        cancelCurrentTransition();
         asciiCtx.clearRect(0, 0, asciiOutput.width, asciiOutput.height);
         currentThumbnailBase64 = null;
+        activeGrid = null;
     }
-});
+    });
+}
 
 // expose the function to reapply the colors
 window.reapplyDynamicColors = function() {
@@ -61,80 +459,33 @@ window.reapplyDynamicColors = function() {
     }
 };
 
-window.wallpaperRegisterMediaThumbnailListener((event) => {
-    if (event.thumbnail) {
-        currentThumbnailBase64 = event.thumbnail;
-        generateAscii(currentThumbnailBase64);
-        
-        // Only extract colors if the user wants Dynamic Colors
-        if (!window.useCustomColors) {
-            extractAndApplyColors(currentThumbnailBase64);
-        }
-        
-    } else {
-        // Clear the canvas if there is no image
-        asciiCtx.clearRect(0, 0, asciiOutput.width, asciiOutput.height);
-        currentThumbnailBase64 = null;
+function generateAscii(base64Image, instant = false) {
+    if (typeof appendLog === 'function') {
+        appendLog('[IMAGE] Generating ASCII image');
     }
-});
-
-function generateAscii(base64Image) {
-    appendLog(`[IMAGE] Generating ASCII image`);
     const asciiImg = new Image();
 
     asciiImg.onload = () => {
-        // Calculate the character dimensions first
-        const charWidth = currentFontSize * 0.6;
-        const charHeight = currentFontSize * 0.65; 
-        
-        // How many characters fit in the requested physical size
-        const asciiWidth = Math.floor(currentImageSize / charWidth);
-        const scaleFactor = asciiWidth / asciiImg.width;
-        const asciiHeight = Math.floor(asciiImg.height * scaleFactor);
+        const newGrid = createAsciiGridFromImage(asciiImg, currentImageSize, currentFontSize);
 
-        // Draw image to hidden canvas to sample the raw pixels
-        canvas.width = asciiWidth;
-        canvas.height = asciiHeight;
-        ctx.drawImage(asciiImg, 0, 0, asciiWidth, asciiHeight);
-
-        const imageData = ctx.getImageData(0, 0, asciiWidth, asciiHeight);
-        const pixels = imageData.data;
-        
-        // Set the output canvas to the exact 1:1 pixel size requested
-        asciiOutput.width = asciiWidth * charWidth;
-        asciiOutput.height = asciiHeight * charHeight;
-        
-        asciiCtx.clearRect(0, 0, asciiOutput.width, asciiOutput.height);
-        asciiCtx.font = `bold ${currentFontSize}px Consolas, "Courier New", monospace`;
-        asciiCtx.textBaseline = "top";
-
-        for (let y = 0; y < asciiHeight; y++) {
-            for (let x = 0; x < asciiWidth; x++) {
-                const offset = (y * asciiWidth + x) * 4;
-                const r = pixels[offset];
-                const g = pixels[offset + 1];
-                const b = pixels[offset + 2];
-
-                // integer math for brightness
-                const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-                const charIndex = Math.floor((brightness / 255) * densityLen);
-                
-                const char = density[charIndex];
-
-                // Skip drawing empty space
-                if (char !== " ") {
-                    asciiCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-                    asciiCtx.fillText(char, x * charWidth, y * charHeight);
-                }
-            }
+        if (instant || currentTransitionStyle === 'none' || currentTransitionDuration <= 0 || !activeGrid) {
+            cancelCurrentTransition();
+            renderGridInstantly(newGrid);
+            activeGrid = newGrid;
+            return;
         }
+
+        startTransition(activeGrid, newGrid, currentTransitionStyle, currentTransitionDuration);
     };
-    
+
     asciiImg.src = base64Image;
 }
+window.generateAscii = generateAscii;
 
 function extractAndApplyColors(base64Image) {
-    appendLog(`[IMAGE] Extracting colors`);
+    if (typeof appendLog === 'function') {
+        appendLog('[IMAGE] Extracting colors');
+    }
     const img = new Image();
 
     img.onload = () => {

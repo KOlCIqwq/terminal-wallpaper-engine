@@ -142,6 +142,25 @@
                 "max": 20,
                 "value": 8
             },
+            "ascii_transition_effect": {
+                "order": 203,
+                "text": "Transition Style",
+                "type": "combo",
+                "value": "rain",
+                "options": [
+                    { "label": "Matrix Rain (Cascade)", "value": "rain" },
+                    { "label": "Matrix Glitch (Dissolve)", "value": "glitch" },
+                    { "label": "Instant (No Transition)", "value": "none" }
+                ]
+            },
+            "ascii_transition_duration": {
+                "order": 204,
+                "text": "Transition Duration (ms)",
+                "type": "slider",
+                "min": 300,
+                "max": 3000,
+                "value": 1200
+            },
             "layout_group": {
                 "order": 300,
                 "text": "Layout Settings",
