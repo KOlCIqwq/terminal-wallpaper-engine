@@ -153,8 +153,22 @@
                     { "label": "Instant (No Transition)", "value": "none" }
                 ]
             },
-            "ascii_transition_duration": {
+            "ascii_transition_color": {
                 "order": 204,
+                "text": "Transition Color Palette",
+                "type": "combo",
+                "value": "dynamic",
+                "options": [
+                    { "label": "Dynamic (Album Accent)", "value": "dynamic" },
+                    { "label": "Chromatic (Local Pixel Colors)", "value": "chromatic" },
+                    { "label": "Classic Matrix Green", "value": "green" },
+                    { "label": "Cyber Cyan", "value": "cyan" },
+                    { "label": "Amber CRT", "value": "amber" },
+                    { "label": "Neon Violet", "value": "violet" }
+                ]
+            },
+            "ascii_transition_duration": {
+                "order": 205,
                 "text": "Transition Duration (ms)",
                 "type": "slider",
                 "min": 300,

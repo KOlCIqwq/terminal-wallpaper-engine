@@ -15,6 +15,7 @@ let currentImageSize = 500;
 let currentFontSize = 8;
 let currentThumbnailBase64 = null;
 let currentTransitionStyle = 'rain'; // 'rain', 'glitch', 'none'
+let currentTransitionColor = 'dynamic'; // 'dynamic', 'chromatic', 'green', 'cyan', 'amber', 'violet'
 let currentTransitionDuration = 1200; // ms
 
 let activeGrid = null;
@@ -36,6 +37,9 @@ class AsciiGrid {
         this.b = new Uint8Array(size);
         this.brightness = new Uint8Array(size);
         this.active = new Uint8Array(size);
+        this.accentR = 0;
+        this.accentG = 230;
+        this.accentB = 140;
     }
 }
 
@@ -63,6 +67,9 @@ function createAsciiGridFromImage(img, targetWidthPixels, fontSize) {
     
     const grid = new AsciiGrid(asciiWidth, asciiHeight, charWidth, charHeight);
 
+    let totalSatWeight = 0;
+    let accR = 0, accG = 0, accB = 0;
+
     for (let y = 0; y < asciiHeight; y++) {
         for (let x = 0; x < asciiWidth; x++) {
             const idx = y * asciiWidth + x;
@@ -88,10 +95,83 @@ function createAsciiGridFromImage(img, targetWidthPixels, fontSize) {
             grid.b[idx] = b;
             grid.brightness[idx] = brightness;
             grid.active[idx] = (char !== " ") ? 1 : 0;
+
+            const maxC = Math.max(r, g, b);
+            const minC = Math.min(r, g, b);
+            const sat = maxC - minC;
+            if (sat > 20 && maxC > 50) {
+                const weight = sat * sat;
+                accR += r * weight;
+                accG += g * weight;
+                accB += b * weight;
+                totalSatWeight += weight;
+            }
         }
     }
 
+    if (totalSatWeight > 0) {
+        let baseR = Math.round(accR / totalSatWeight);
+        let baseG = Math.round(accG / totalSatWeight);
+        let baseB = Math.round(accB / totalSatWeight);
+        const maxV = Math.max(baseR, baseG, baseB, 1);
+        if (maxV < 210) {
+            const boost = 210 / maxV;
+            baseR = Math.min(255, Math.round(baseR * boost));
+            baseG = Math.min(255, Math.round(baseG * boost));
+            baseB = Math.min(255, Math.round(baseB * boost));
+        }
+        grid.accentR = baseR;
+        grid.accentG = baseG;
+        grid.accentB = baseB;
+    } else {
+        grid.accentR = 20;
+        grid.accentG = 225;
+        grid.accentB = 255;
+    }
+
     return grid;
+}
+
+function computeThemeColor(mode, progress, oldGrid, newGrid, oldR, oldG, oldB, newR, newG, newB) {
+    if (mode === 'chromatic') {
+        const r = Math.round(oldR * (1 - progress) + newR * progress);
+        const g = Math.round(oldG * (1 - progress) + newG * progress);
+        const b = Math.round(oldB * (1 - progress) + newB * progress);
+        const maxVal = Math.max(r, g, b, 1);
+        const boost = maxVal < 180 ? 180 / maxVal : 1;
+        return {
+            r: Math.min(255, Math.round(r * boost)),
+            g: Math.min(255, Math.round(g * boost)),
+            b: Math.min(255, Math.round(b * boost))
+        };
+    }
+    if (mode === 'green') return { r: 30, g: 245, b: 70 };
+    if (mode === 'cyan') return { r: 20, g: 225, b: 255 };
+    if (mode === 'amber') return { r: 255, g: 175, b: 25 };
+    if (mode === 'violet') return { r: 220, g: 60, b: 255 };
+
+    // 'dynamic' (default): morph from old album accent to new album accent
+    const oR = (oldGrid && oldGrid.accentR !== undefined) ? oldGrid.accentR : 0;
+    const oG = (oldGrid && oldGrid.accentG !== undefined) ? oldGrid.accentG : 230;
+    const oB = (oldGrid && oldGrid.accentB !== undefined) ? oldGrid.accentB : 140;
+
+    const nR = (newGrid && newGrid.accentR !== undefined) ? newGrid.accentR : 0;
+    const nG = (newGrid && newGrid.accentG !== undefined) ? newGrid.accentG : 230;
+    const nB = (newGrid && newGrid.accentB !== undefined) ? newGrid.accentB : 140;
+
+    return {
+        r: Math.round(oR * (1 - progress) + nR * progress),
+        g: Math.round(oG * (1 - progress) + nG * progress),
+        b: Math.round(oB * (1 - progress) + nB * progress)
+    };
+}
+
+function computeHeadColor(theme) {
+    return {
+        r: Math.min(255, Math.round(theme.r * 0.35 + 255 * 0.65)),
+        g: Math.min(255, Math.round(theme.g * 0.35 + 255 * 0.65)),
+        b: Math.min(255, Math.round(theme.b * 0.35 + 255 * 0.65))
+    };
 }
 
 function renderGridInstantly(grid) {
@@ -144,6 +224,9 @@ function runRainTransition(oldGrid, newGrid, duration, startTime) {
         const frameSeed = (elapsed / 45) | 0;
         let lastFill = "";
 
+        const globalTheme = computeThemeColor(currentTransitionColor, progress, oldGrid, newGrid, 0, 0, 0, 0, 0, 0);
+        const globalHead = computeHeadColor(globalTheme);
+
         for (let x = 0; x < cols; x++) {
             const delay = colDelays[x];
             const speed = colSpeeds[x];
@@ -168,6 +251,16 @@ function runRainTransition(oldGrid, newGrid, duration, startTime) {
                 let char = " ";
                 let r = 0, g = 0, b = 0;
 
+                let cellTheme = globalTheme;
+                let cellHead = globalHead;
+                if (currentTransitionColor === 'chromatic') {
+                    cellTheme = computeThemeColor('chromatic', progress, oldGrid, newGrid,
+                        hasOld ? oldGrid.r[oldIdx] : 100, hasOld ? oldGrid.g[oldIdx] : 100, hasOld ? oldGrid.b[oldIdx] : 100,
+                        hasNew ? newGrid.r[newIdx] : 100, hasNew ? newGrid.g[newIdx] : 100, hasNew ? newGrid.b[newIdx] : 100
+                    );
+                    cellHead = computeHeadColor(cellTheme);
+                }
+
                 if (y > headY + 2) {
                     // Zone 1: Unreached - old image intact
                     if (!hasOld) continue;
@@ -176,11 +269,13 @@ function runRainTransition(oldGrid, newGrid, duration, startTime) {
                     g = oldGrid.g[oldIdx];
                     b = oldGrid.b[oldIdx];
                 } else if (y >= headY - 1 && y <= headY + 2) {
-                    // Zone 2: Rain Head - old image breaks into glowing phosphor Matrix glyph
+                    // Zone 2: Rain Head - old image breaks into glowing cyber glyph
                     char = MATRIX_CHARS[(x * 31 + y * 17 + frameSeed) % MATRIX_CHARS_LEN];
-                    r = 210; g = 255; b = 220;
+                    r = cellHead.r;
+                    g = cellHead.g;
+                    b = cellHead.b;
                 } else if (y >= headY - trail && y < headY - 1) {
-                    // Zone 3: Matrix Rain Stream
+                    // Zone 3: Cyber Rain Stream
                     const dist = (headY - 1) - y;
                     const trailRatio = dist / trail;
 
@@ -188,10 +283,11 @@ function runRainTransition(oldGrid, newGrid, duration, startTime) {
 
                     const lum = hasNew ? newGrid.brightness[newIdx] : (hasOld ? oldGrid.brightness[oldIdx] : 120);
                     const lumFactor = 0.35 + 0.65 * (lum / 255);
+                    const trailFactor = 1 - 0.45 * trailRatio;
 
-                    r = Math.round((25 * (1 - trailRatio)) * lumFactor);
-                    g = Math.round((255 - 130 * trailRatio) * lumFactor);
-                    b = Math.round((55 * (1 - trailRatio)) * lumFactor);
+                    r = Math.round(cellTheme.r * trailFactor * lumFactor);
+                    g = Math.round(cellTheme.g * trailFactor * lumFactor);
+                    b = Math.round(cellTheme.b * trailFactor * lumFactor);
                 } else {
                     // Zone 4: Recomposition Zone behind the trail
                     if (!hasNew) continue;
@@ -207,15 +303,15 @@ function runRainTransition(oldGrid, newGrid, duration, startTime) {
                             ? newGrid.chars[newIdx]
                             : MATRIX_CHARS[(x * 19 + y * 29 + frameSeed) % MATRIX_CHARS_LEN];
 
-                        r = Math.round(targetR * rebuild);
-                        g = Math.round(180 * (1 - rebuild) + targetG * rebuild);
-                        b = Math.round(40 * (1 - rebuild) + targetB * rebuild);
+                        r = Math.round(cellTheme.r * (1 - rebuild) + targetR * rebuild);
+                        g = Math.round(cellTheme.g * (1 - rebuild) + targetG * rebuild);
+                        b = Math.round(cellTheme.b * (1 - rebuild) + targetB * rebuild);
                     } else {
                         char = newGrid.chars[newIdx];
                         const bloom = (rebuild - 0.6) / 0.4;
-                        r = Math.round(targetR * (0.7 + 0.3 * bloom));
-                        g = Math.round(targetG * (0.7 + 0.3 * bloom));
-                        b = Math.round(targetB * (0.7 + 0.3 * bloom));
+                        r = Math.round(targetR * (0.75 + 0.25 * bloom));
+                        g = Math.round(targetG * (0.75 + 0.25 * bloom));
+                        b = Math.round(targetB * (0.75 + 0.25 * bloom));
                     }
                 }
 
@@ -265,6 +361,9 @@ function runGlitchTransition(oldGrid, newGrid, duration, startTime) {
         const frameSeed = (elapsed / 45) | 0;
         let lastFill = "";
 
+        const globalTheme = computeThemeColor(currentTransitionColor, progress, oldGrid, newGrid, 0, 0, 0, 0, 0, 0);
+        const globalHead = computeHeadColor(globalTheme);
+
         const hasScanlineGlitch = (frameSeed % 7 === 0) && progress < 0.8;
         const glitchRow = hasScanlineGlitch ? ((frameSeed * 13) % rows) : -1;
         const glitchShift = hasScanlineGlitch ? (((frameSeed % 3) - 1) * newGrid.charWidth * 1.5) : 0;
@@ -288,6 +387,16 @@ function runGlitchTransition(oldGrid, newGrid, duration, startTime) {
                 let char = " ";
                 let r = 0, g = 0, b = 0;
 
+                let cellTheme = globalTheme;
+                let cellHead = globalHead;
+                if (currentTransitionColor === 'chromatic') {
+                    cellTheme = computeThemeColor('chromatic', progress, oldGrid, newGrid,
+                        hasOld ? oldGrid.r[oldIdx] : 100, hasOld ? oldGrid.g[oldIdx] : 100, hasOld ? oldGrid.b[oldIdx] : 100,
+                        hasNew ? newGrid.r[newIdx] : 100, hasNew ? newGrid.g[newIdx] : 100, hasNew ? newGrid.b[newIdx] : 100
+                    );
+                    cellHead = computeHeadColor(cellTheme);
+                }
+
                 if (progress < 0.35) {
                     const t1 = progress / 0.35;
                     const breakThresh = breakThresholds[newIdx];
@@ -303,12 +412,12 @@ function runGlitchTransition(oldGrid, newGrid, duration, startTime) {
                         char = MATRIX_CHARS[(x * 19 + y * 31 + frameSeed) % MATRIX_CHARS_LEN];
 
                         const oldR = hasOld ? oldGrid.r[oldIdx] : 0;
-                        const oldG = hasOld ? oldGrid.g[oldIdx] : 180;
-                        const oldB = hasOld ? oldGrid.b[oldIdx] : 40;
+                        const oldG = hasOld ? oldGrid.g[oldIdx] : cellTheme.g;
+                        const oldB = hasOld ? oldGrid.b[oldIdx] : cellTheme.b;
 
-                        r = Math.round(oldR * (1 - localBreak));
-                        g = Math.round(oldG * (1 - localBreak) + 230 * localBreak);
-                        b = Math.round(oldB * (1 - localBreak) + 50 * localBreak);
+                        r = Math.round(oldR * (1 - localBreak) + cellTheme.r * localBreak);
+                        g = Math.round(oldG * (1 - localBreak) + cellTheme.g * localBreak);
+                        b = Math.round(oldB * (1 - localBreak) + cellTheme.b * localBreak);
                     }
                 } else if (progress <= 0.65) {
                     const t2 = (progress - 0.35) / 0.30;
@@ -320,11 +429,11 @@ function runGlitchTransition(oldGrid, newGrid, duration, startTime) {
                     const intensity = 0.35 + 0.65 * (lum / 255);
 
                     if ((x * 17 + y * 29 + frameSeed) % 31 === 0) {
-                        r = 210; g = 255; b = 220;
+                        r = cellHead.r; g = cellHead.g; b = cellHead.b;
                     } else {
-                        r = Math.round(20 * intensity);
-                        g = Math.round(240 * intensity);
-                        b = Math.round(50 * intensity);
+                        r = Math.round(cellTheme.r * intensity);
+                        g = Math.round(cellTheme.g * intensity);
+                        b = Math.round(cellTheme.b * intensity);
                     }
                 } else {
                     const t3 = (progress - 0.65) / 0.35;
@@ -334,9 +443,9 @@ function runGlitchTransition(oldGrid, newGrid, duration, startTime) {
                         char = MATRIX_CHARS[(x * 29 + y * 13 + frameSeed) % MATRIX_CHARS_LEN];
                         const lum = hasNew ? newGrid.brightness[newIdx] : 120;
                         const intensity = 0.35 + 0.65 * (lum / 255);
-                        r = Math.round(15 * intensity);
-                        g = Math.round(220 * intensity);
-                        b = Math.round(40 * intensity);
+                        r = Math.round(cellTheme.r * intensity);
+                        g = Math.round(cellTheme.g * intensity);
+                        b = Math.round(cellTheme.b * intensity);
                     } else {
                         if (!hasNew) continue;
                         char = newGrid.chars[newIdx];
@@ -346,9 +455,9 @@ function runGlitchTransition(oldGrid, newGrid, duration, startTime) {
                         const targetG = newGrid.g[newIdx];
                         const targetB = newGrid.b[newIdx];
 
-                        r = Math.round(targetR * bloom);
-                        g = Math.round(200 * (1 - bloom) + targetG * bloom);
-                        b = Math.round(40 * (1 - bloom) + targetB * bloom);
+                        r = Math.round(cellTheme.r * (1 - bloom) + targetR * bloom);
+                        g = Math.round(cellTheme.g * (1 - bloom) + targetG * bloom);
+                        b = Math.round(cellTheme.b * (1 - bloom) + targetB * bloom);
                     }
                 }
 
@@ -418,6 +527,15 @@ window.myPropertyHandlers.push(function(properties) {
         } else if (typeof val === 'number') {
             const styles = ['rain', 'glitch', 'none'];
             currentTransitionStyle = styles[val] || 'rain';
+        }
+    }
+    if (properties.ascii_transition_color) {
+        const val = properties.ascii_transition_color.value;
+        if (typeof val === 'string') {
+            currentTransitionColor = val;
+        } else if (typeof val === 'number') {
+            const colors = ['dynamic', 'chromatic', 'green', 'cyan', 'amber', 'violet'];
+            currentTransitionColor = colors[val] || 'dynamic';
         }
     }
     if (properties.ascii_transition_duration) {
