@@ -179,7 +179,7 @@ async function fetchPixivRanking() {
                         .filter(item => {
                             // Tag Blacklist: Filter out manga, multi-page sets, etc.
                             const excludedTags = ["漫画", "manga", "comic", "コミック", "COMIC", 
-                                "horror", "atypical appearance"];
+                                "horror", "atypical appearance", "R-18", "R18", "R16", "R-16"];
                             if (item.tags && Array.isArray(item.tags)) {
                                 const hasExcluded = item.tags.some(t => 
                                     excludedTags.includes(t.name) || 
