@@ -136,7 +136,7 @@ setInterval(() => {
     const intervalMs = pixivUpdateInterval * 60 * 1000;
     
     // Scheduled Update Check
-    if (window.pixivEnabled && intervalMs > 0 && (now - lastPixivAction >= intervalMs)) {
+    if (window.pixivEnabled && !pixivManualMode && intervalMs > 0 && (now - lastPixivAction >= intervalMs)) {
         appendLog("[PIXIV] Interval reached. Cycling wallpaper...");
         nextPixivWallpaper();
         lastPixivAction = now;
@@ -259,6 +259,15 @@ async function fetchPixivRanking() {
                 applyPixivBackground();
                 savePixivState();
             }
+
+            // Re-render gallery if open
+            const galleryWidget = document.getElementById('widget-pixiv-gallery');
+            if (galleryWidget && galleryWidget.style.display !== 'none' && !favModeActive) {
+                const grid = document.getElementById('gallery-grid');
+                const currentScroll = grid ? grid.scrollTop : 0;
+                renderPixivGallery();
+                if (grid) grid.scrollTop = currentScroll;
+            }
         } else {
             fetchAlternativeRanking();
         }
@@ -332,6 +341,9 @@ function fetchAlternativeRanking() {
         });
 }
 
+let currentWallpaperLoadId = 0;
+let activeWallpaperImg = null;
+
 function applyPixivBackground() {
     if (!window.pixivEnabled || pixivRankings.length === 0) return;
 
@@ -341,9 +353,9 @@ function applyPixivBackground() {
     loadPixivWallpaper(illust, false);
 }
 
-function applySpecificBackground(illust) {
+function applySpecificBackground(illust, isFavorite = false) {
     if (!illust) return;
-    loadPixivWallpaper(illust, true);
+    loadPixivWallpaper(illust, isFavorite);
 }
 
 function loadPixivWallpaper(illust, isFavorite = false) {
@@ -360,10 +372,20 @@ function loadPixivWallpaper(illust, isFavorite = false) {
         videoLayer.load();
     }
 
+    if (activeWallpaperImg) {
+        activeWallpaperImg.onload = null;
+        activeWallpaperImg.onerror = null;
+        activeWallpaperImg.src = "";
+        activeWallpaperImg = null;
+    }
+
     const rawPath = illust.rawPath || illust.url;
     let proxyIdx = 0;
+    const loadId = ++currentWallpaperLoadId;
 
     function tryLoadNextProxy() {
+        if (loadId !== currentWallpaperLoadId) return;
+
         if (proxyIdx >= PIXIV_PROXIES.length) {
             appendLog(`[PIXIV] Failed to load wallpaper across all proxies: ${illust.title}`);
             if (imageLayer) {
@@ -378,7 +400,12 @@ function loadPixivWallpaper(illust, isFavorite = false) {
 
         // Preload image to test availability before setting background
         const tempImg = new Image();
+        activeWallpaperImg = tempImg;
+
         tempImg.onload = () => {
+            if (loadId !== currentWallpaperLoadId) return;
+            activeWallpaperImg = null;
+
             if (imageLayer) {
                 imageLayer.style.backgroundImage = `url('${targetUrl}')`;
                 imageLayer.style.display = 'block';
@@ -397,6 +424,9 @@ function loadPixivWallpaper(illust, isFavorite = false) {
             }
         };
         tempImg.onerror = () => {
+            if (loadId !== currentWallpaperLoadId) return;
+            activeWallpaperImg = null;
+
             console.warn(`[PIXIV] Proxy ${currentProxy} failed for ${illust.title}, trying next proxy...`);
             proxyIdx++;
             tryLoadNextProxy();
@@ -422,12 +452,13 @@ function nextPixivWallpaper() {
     
     if (favModeActive && pixivFavorites.length > 0) {
         pixivCurrentIndex = (pixivCurrentIndex + 1) % pixivFavorites.length;
-        applySpecificBackground(pixivFavorites[pixivCurrentIndex]);
+        applySpecificBackground(pixivFavorites[pixivCurrentIndex], true);
     } else if (pixivRankings.length > 0) {
         pixivCurrentIndex = (pixivCurrentIndex + 1) % pixivRankings.length;
-        applyPixivBackground();
+        applySpecificBackground(pixivRankings[pixivCurrentIndex], false);
     }
     lastPixivAction = Date.now();
+    updateGalleryActiveState();
 }
 
 const toggleFavMode = document.getElementById('toggle-fav-mode');
@@ -439,7 +470,7 @@ if (toggleFavMode) {
         
         if (favModeActive && pixivFavorites.length > 0) {
             pixivCurrentIndex = 0;
-            applySpecificBackground(pixivFavorites[0]);
+            applySpecificBackground(pixivFavorites[0], true);
         } else {
             if (typeof refreshBackground === 'function') refreshBackground();
         }
@@ -516,18 +547,9 @@ window.myPropertyHandlers.push(function(properties) {
 function updateGalleryActiveState() {
     const grid = document.getElementById('gallery-grid');
     if (!grid) return;
-    const activeBg = document.getElementById('bg-layer-image').style.backgroundImage || '';
-    const displayList = favModeActive ? pixivFavorites : pixivRankings;
-
     const items = grid.querySelectorAll('.gallery-item');
     items.forEach((it, i) => {
-        const illust = displayList[i];
-        const isItemActive = (i === pixivCurrentIndex) || (illust && (
-            (illust.rawPath && activeBg.includes(illust.rawPath)) || 
-            (illust.id && activeBg.includes(String(illust.id))) ||
-            (illust.url && activeBg.includes(illust.url))
-        ));
-        it.classList.toggle('active', !!isItemActive);
+        it.classList.toggle('active', i === pixivCurrentIndex);
     });
 }
 
@@ -542,13 +564,22 @@ function renderPixivGallery() {
     // Determine which list to show in gallery
     const displayList = favModeActive ? pixivFavorites : pixivRankings;
 
+    // Sync pixivCurrentIndex with active background if present and index out of sync
+    const activeBg = (document.getElementById('bg-layer-image') && document.getElementById('bg-layer-image').style.backgroundImage) || '';
+    if (activeBg && (!displayList[pixivCurrentIndex] || !((displayList[pixivCurrentIndex].rawPath && activeBg.includes(displayList[pixivCurrentIndex].rawPath)) || (displayList[pixivCurrentIndex].id && activeBg.includes(String(displayList[pixivCurrentIndex].id)))))) {
+        const foundIdx = displayList.findIndex(illust => 
+            (illust.rawPath && activeBg.includes(illust.rawPath)) || 
+            (illust.id && activeBg.includes(String(illust.id))) ||
+            (illust.url && activeBg.includes(illust.url))
+        );
+        if (foundIdx !== -1) {
+            pixivCurrentIndex = foundIdx;
+        }
+    }
+
     displayList.forEach((illust, index) => {
         const item = document.createElement('div');
-        const activeBg = document.getElementById('bg-layer-image').style.backgroundImage || '';
-        const isItemActive = (index === pixivCurrentIndex) || 
-                             (illust.rawPath && activeBg.includes(illust.rawPath)) || 
-                             (illust.id && activeBg.includes(String(illust.id))) ||
-                             (illust.url && activeBg.includes(illust.url));
+        const isItemActive = (index === pixivCurrentIndex);
 
         const isFav = pixivFavorites.some(f => 
             f.url === illust.url || 
@@ -587,18 +618,14 @@ function renderPixivGallery() {
             e.stopPropagation();
             pixivCurrentIndex = index;
             pixivManualMode = true;
+            lastPixivAction = Date.now();
+            window.pixivEnabled = true;
+            updatePixivUI();
             
-            if (favModeActive) {
-                applySpecificBackground(illust);
-            } else {
-                applyPixivBackground();
-            }
+            applySpecificBackground(illust, favModeActive);
 
             // Instantly highlight the clicked item without clearing the DOM or reloading images
-            const allItems = grid.querySelectorAll('.gallery-item');
-            allItems.forEach((it, i) => {
-                it.classList.toggle('active', i === index);
-            });
+            updateGalleryActiveState();
         };
 
         // Favorite Toggle
@@ -617,9 +644,11 @@ function renderPixivGallery() {
                 favBtn.classList.remove('is-fav');
                 favBtn.textContent = '♡';
                 
-                // If we are in Favs Mode, remove just this card from DOM
+                // If we are in Favs Mode, re-render gallery to sync indices while preserving scroll
                 if (favModeActive) {
-                    item.remove();
+                    const currentScroll = grid.scrollTop;
+                    renderPixivGallery();
+                    grid.scrollTop = currentScroll;
                     if (isItemActive) {
                         if (pixivFavorites.length > 0) {
                             nextPixivWallpaper();
@@ -652,10 +681,13 @@ function renderPixivGallery() {
                 saveFavoritesToPython();
             } else {
                 pixivRankings = pixivRankings.filter(item => item.url !== urlToRemove && (!illust.id || item.id !== illust.id));
+                savePixivState();
             }
 
-            // Remove only this card without re-rendering the whole gallery
-            item.remove();
+            // Re-render gallery while preserving scroll position to keep DOM indices aligned
+            const currentScroll = grid.scrollTop;
+            renderPixivGallery();
+            grid.scrollTop = currentScroll;
         };
         
         grid.appendChild(item);
@@ -680,12 +712,54 @@ if (btnOpenGallery && widgetGallery) {
             } else {
                 updateGalleryActiveState();
             }
-            // Position near settings
-            const settingsRect = document.getElementById('widget-settings').getBoundingClientRect();
-            widgetGallery.style.left = (settingsRect.left - 460) + "px";
-            widgetGallery.style.top = settingsRect.top + "px";
+            // Position near settings only if not previously moved
+            const savedPos = localStorage.getItem('pos_' + widgetGallery.id);
+            if (!savedPos && widgetGallery.dataset.userMoved !== 'true') {
+                const settingsRect = document.getElementById('widget-settings').getBoundingClientRect();
+                widgetGallery.style.left = (settingsRect.left - 460) + "px";
+                widgetGallery.style.top = settingsRect.top + "px";
+            }
         }
     });
+}
+
+if (widgetGallery) {
+    const galHeader = widgetGallery.querySelector('.header-text');
+    if (galHeader) {
+        galHeader.style.cursor = 'grab';
+        galHeader.addEventListener('mousedown', (e) => {
+            if (e.target.closest('#btn-close-gallery, #btn-gal-down, #btn-gal-up')) return;
+            e.preventDefault();
+            galHeader.style.cursor = 'grabbing';
+            
+            const rect = widgetGallery.getBoundingClientRect();
+            const startX = e.clientX;
+            const startY = e.clientY;
+            const startLeft = rect.left;
+            const startTop = rect.top;
+
+            function onMouseMove(moveEvent) {
+                const dx = moveEvent.clientX - startX;
+                const dy = moveEvent.clientY - startY;
+                widgetGallery.style.left = `${startLeft + dx}px`;
+                widgetGallery.style.top = `${startTop + dy}px`;
+            }
+
+            function onMouseUp() {
+                galHeader.style.cursor = 'grab';
+                widgetGallery.dataset.userMoved = 'true';
+                localStorage.setItem('pos_' + widgetGallery.id, JSON.stringify({
+                    left: widgetGallery.style.left,
+                    top: widgetGallery.style.top
+                }));
+                window.removeEventListener('mousemove', onMouseMove);
+                window.removeEventListener('mouseup', onMouseUp);
+            }
+
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+        });
+    }
 }
 
 if (btnCloseGallery) {

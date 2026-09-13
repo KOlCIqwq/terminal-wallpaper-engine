@@ -701,3 +701,25 @@ function cleanArtist(artist) {
     if (!artist) return ""; // Protect against undefined/null
     return String(artist).split(/,|&|\+| and | ft\.? | feat\.? | featuring /i)[0].trim();
 }
+
+// Scroll Controls
+const btnLyricUp = document.getElementById('btn-lyric-up');
+const btnLyricDown = document.getElementById('btn-lyric-down');
+
+if (btnLyricUp && btnLyricDown) {
+    const scrollJump = 60;
+
+    btnLyricUp.addEventListener('click', () => {
+        const container = document.getElementById('lyrics-container');
+        if (container) {
+            container.scrollBy({ top: -scrollJump, behavior: 'smooth' });
+        }
+    });
+
+    btnLyricDown.addEventListener('click', () => {
+        const container = document.getElementById('lyrics-container');
+        if (container) {
+            container.scrollBy({ top: scrollJump, behavior: 'smooth' });
+        }
+    });
+}

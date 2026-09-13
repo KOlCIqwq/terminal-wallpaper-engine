@@ -722,13 +722,17 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                 except: pass
 
         elif parsed_path.path == '/media/volume':
-            self.send_response(200); self.end_headers()
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
             q = parse_qs(parsed_path.query)
             if 'val' in q:
                 try:
                     v = max(0.0, min(1.0, float(q['val'][0]) / 100.0))
                     ctrl = get_volume_control()
-                    if ctrl: ctrl.SetMasterVolumeLevelScalar(v, None)
+                    if ctrl:
+                        ctrl.SetMasterVolumeLevelScalar(v, None)
+                        system_state['sys_volume'] = round(v * 100)
                 except: pass
 
         elif parsed_path.path == '/media/convert':
