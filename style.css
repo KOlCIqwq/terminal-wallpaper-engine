@@ -270,7 +270,7 @@ body {
     transform: translateZ(0); /* Force GPU compositing layer */
 }
 
-#bg-layer-image, #bg-layer-video, #bg-layer-overlay {
+#bg-layer-image, #bg-layer-pixiv, #bg-layer-video, #bg-layer-overlay {
     position: fixed;
     top: 0;
     left: 0;
@@ -286,8 +286,16 @@ body {
     display: none;
 }
 
-#bg-layer-video {
+#bg-layer-pixiv {
     z-index: 2;
+    background-size: cover;
+    background-position: var(--bg-pos-x, 50%) var(--bg-pos-y, 50%);
+    background-repeat: no-repeat;
+    display: none;
+}
+
+#bg-layer-video {
+    z-index: 3;
     object-fit: cover;
     object-position: var(--bg-pos-x, 50%) var(--bg-pos-y, 50%);
     display: none;
@@ -295,7 +303,7 @@ body {
 }
 
 #bg-layer-overlay {
-    z-index: 3;
+    z-index: 4;
     pointer-events: none;
     display: none;
 }

@@ -1,7 +1,8 @@
-window.pixivEnabled = false;
+window.pixivEnabled = localStorage.getItem('pixiv_enabled') === 'true';
 let pixivRankingType = 'daily';
 let pixivCurrentIndex = 0;
 let pixivRankings = [];
+window.pixivRankings = pixivRankings;
 let pixivUpdateInterval = 60; // minutes
 let pixivShuffle = false;
 let isPixivLoading = false;
@@ -118,7 +119,9 @@ async function loadPixivState() {
             // If in favorites mode, we might want to prioritize those, 
             // but for now just apply what we restored.
             if (!favModeActive) {
-                applyPixivBackground();
+                if (window.pixivEnabled) {
+                    applyPixivBackground();
+                }
                 isRestoredFromCache = true;
                 lastPixivAction = Date.now();
             }
@@ -251,6 +254,9 @@ async function fetchPixivRanking() {
                     pixivCurrentIndex = foundIndex;
                 }
                 appendLog(`[PIXIV] Updated queue (${pixivRankings.length} wallpapers). Keeping cached wallpaper until next interval.`);
+                if (window.pixivEnabled) {
+                    applyPixivBackground();
+                }
                 savePixivState();
             } else {
                 pixivRankings = freshRankings;
@@ -320,6 +326,9 @@ function fetchAlternativeRanking() {
                             pixivCurrentIndex = foundIndex;
                         }
                         appendLog(`[PIXIV] Fallback ranking refreshed (${pixivRankings.length} images). Keeping cached wallpaper until next interval.`);
+                        if (window.pixivEnabled) {
+                            applyPixivBackground();
+                        }
                         savePixivState();
                     } else {
                         pixivRankings = horizontalFallback;
@@ -344,6 +353,23 @@ function fetchAlternativeRanking() {
 let currentWallpaperLoadId = 0;
 let activeWallpaperImg = null;
 
+function cancelPixivLoading() {
+    currentWallpaperLoadId++;
+    if (activeWallpaperImg) {
+        activeWallpaperImg.onload = null;
+        activeWallpaperImg.onerror = null;
+        activeWallpaperImg.src = "";
+        activeWallpaperImg = null;
+    }
+    const pixivLayer = document.getElementById('bg-layer-pixiv');
+    if (pixivLayer) {
+        pixivLayer.style.display = 'none';
+    }
+}
+window.cancelPixivLoading = cancelPixivLoading;
+window.applyPixivBackground = applyPixivBackground;
+window.updatePixivUI = updatePixivUI;
+
 function applyPixivBackground() {
     if (!window.pixivEnabled || pixivRankings.length === 0) return;
 
@@ -359,8 +385,9 @@ function applySpecificBackground(illust, isFavorite = false) {
 }
 
 function loadPixivWallpaper(illust, isFavorite = false) {
+    window.customBgActive = false;
     const videoLayer = document.getElementById('bg-layer-video');
-    const imageLayer = document.getElementById('bg-layer-image');
+    const pixivLayer = document.getElementById('bg-layer-pixiv');
     const btnNext = document.getElementById('btn-pixiv-next');
 
     if (btnNext) btnNext.style.display = 'block';
@@ -388,9 +415,9 @@ function loadPixivWallpaper(illust, isFavorite = false) {
 
         if (proxyIdx >= PIXIV_PROXIES.length) {
             appendLog(`[PIXIV] Failed to load wallpaper across all proxies: ${illust.title}`);
-            if (imageLayer) {
-                imageLayer.style.backgroundImage = `url('${buildProxyUrl(rawPath, 0)}')`;
-                imageLayer.style.display = 'block';
+            if (pixivLayer) {
+                pixivLayer.style.backgroundImage = `url('${buildProxyUrl(rawPath, 0)}')`;
+                pixivLayer.style.display = 'block';
             }
             return;
         }
@@ -406,9 +433,9 @@ function loadPixivWallpaper(illust, isFavorite = false) {
             if (loadId !== currentWallpaperLoadId) return;
             activeWallpaperImg = null;
 
-            if (imageLayer) {
-                imageLayer.style.backgroundImage = `url('${targetUrl}')`;
-                imageLayer.style.display = 'block';
+            if (pixivLayer) {
+                pixivLayer.style.backgroundImage = `url('${targetUrl}')`;
+                pixivLayer.style.display = 'block';
             }
             updatePixivDim();
             document.body.style.backgroundImage = 'none';
@@ -484,6 +511,7 @@ if (toggleFavMode) {
 }
 
 function updatePixivUI() {
+    localStorage.setItem('pixiv_enabled', window.pixivEnabled ? 'true' : 'false');
     const togglePixivBg = document.getElementById('toggle-pixiv-bg');
     if (togglePixivBg) {
         togglePixivBg.textContent = window.pixivEnabled ? "[ ENABLED ]" : "[ DISABLED ]";
@@ -512,6 +540,7 @@ window.myPropertyHandlers.push(function(properties) {
             shouldFetch = true;
         } else if (!newValue && window.pixivEnabled) {
             // Disabling
+            cancelPixivLoading();
             if (typeof refreshBackground === 'function') refreshBackground();
         }
         window.pixivEnabled = newValue;
@@ -565,7 +594,7 @@ function renderPixivGallery() {
     const displayList = favModeActive ? pixivFavorites : pixivRankings;
 
     // Sync pixivCurrentIndex with active background if present and index out of sync
-    const activeBg = (document.getElementById('bg-layer-image') && document.getElementById('bg-layer-image').style.backgroundImage) || '';
+    const activeBg = (document.getElementById('bg-layer-pixiv') && document.getElementById('bg-layer-pixiv').style.backgroundImage) || '';
     if (activeBg && (!displayList[pixivCurrentIndex] || !((displayList[pixivCurrentIndex].rawPath && activeBg.includes(displayList[pixivCurrentIndex].rawPath)) || (displayList[pixivCurrentIndex].id && activeBg.includes(String(displayList[pixivCurrentIndex].id)))))) {
         const foundIdx = displayList.findIndex(illust => 
             (illust.rawPath && activeBg.includes(illust.rawPath)) || 
@@ -788,6 +817,7 @@ if (btnGalDown && galleryGrid) {
 
 // --- Initialization ---
 (async () => {
+    updatePixivUI();
     // Load favorites first
     await loadFavoritesFromPython();
     

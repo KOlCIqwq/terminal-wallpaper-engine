@@ -36,10 +36,12 @@ window.position = window.position || {
 
 // Global Wallpaper Engine property listener dispatch registry
 window.myPropertyHandlers = window.myPropertyHandlers || [];
+window.lastWeProperties = window.lastWeProperties || {};
 
 if (!window.wallpaperPropertyListener) {
     window.wallpaperPropertyListener = {
         applyUserProperties: function(properties) {
+            if (properties) Object.assign(window.lastWeProperties, properties);
             window.myPropertyHandlers.forEach(handler => handler(properties));
         }
     };

@@ -64,11 +64,22 @@ if (toggleBgVideo) {
 if (togglePixivBg) {
     togglePixivBg.addEventListener('click', () => {
         window.pixivEnabled = !window.pixivEnabled;
-        togglePixivBg.textContent = window.pixivEnabled ? "[ ENABLED ]" : "[ DISABLED ]";
+        if (typeof updatePixivUI === 'function') {
+            updatePixivUI();
+        } else {
+            togglePixivBg.textContent = window.pixivEnabled ? "[ ENABLED ]" : "[ DISABLED ]";
+        }
         
         if (window.pixivEnabled) {
-            if (typeof fetchPixivRanking === 'function') fetchPixivRanking();
+            if (typeof fetchPixivRanking === 'function') {
+                if (window.pixivRankings && window.pixivRankings.length > 0) {
+                    if (typeof applyPixivBackground === 'function') applyPixivBackground();
+                } else {
+                    fetchPixivRanking();
+                }
+            }
         } else {
+            if (typeof cancelPixivLoading === 'function') cancelPixivLoading();
             const btnNext = document.getElementById('btn-pixiv-next');
             if (btnNext) btnNext.style.display = 'none';
             refreshBackground();
@@ -145,12 +156,11 @@ if (btnBrowseBg) {
 }
 
 function refreshBackground() {
-    if (window.wallpaperPropertyListener && window.wallpaperPropertyListener.applyUserProperties) {
-        window.wallpaperPropertyListener.applyUserProperties({});
-    }
     const savedBg = localStorage.getItem('custom_bg_path');
-    if (window.customBgActive && savedBg) {
+    if (savedBg) {
         applyCustomBackground(savedBg);
+    } else if (window.wallpaperPropertyListener && window.wallpaperPropertyListener.applyUserProperties) {
+        window.wallpaperPropertyListener.applyUserProperties(window.lastWeProperties || {});
     }
 }
 window.refreshBackground = refreshBackground;
@@ -367,4 +377,3 @@ window.myPropertyHandlers.push(function(properties) {
         }
     }
 });
-

@@ -38,8 +38,9 @@ if sys.stdout is None:
 if sys.stderr is None:
     sys.stderr = open(os.devnull, 'w')
 
-FAV_FILE = "favorites.json"
-STATE_FILE = "pixiv_state.json"
+APP_DIR = os.path.dirname(os.path.abspath(sys.argv[0])) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+FAV_FILE = os.path.join(APP_DIR, "favorites.json")
+STATE_FILE = os.path.join(APP_DIR, "pixiv_state.json")
 
 def save_to_file(filename, data):
     try:
@@ -279,6 +280,19 @@ async def get_media_info(fetch_props=False):
 
 async def execute_media_command(command, param=None):
     global cur_media_session, media_manager, seek_target, seek_time, cur_playback_pos
+
+    if command == "volume" and param is not None:
+        try:
+            v = max(0.0, min(1.0, float(param) / 100.0))
+            ctrl = get_volume_control()
+            if ctrl:
+                ctrl.SetMasterVolumeLevelScalar(v, None)
+                system_state['sys_volume'] = round(v * 100)
+                await broadcast_ws_media({"type": "volume_update", "sys_volume": system_state['sys_volume']})
+        except Exception:
+            pass
+        return
+
     # Ensure media_manager and session are present
     if media_manager is None:
         try:
@@ -590,8 +604,9 @@ async def ws_handler(websocket):
                 data = json.loads(raw)
                 action = data.get("action")
                 pos = data.get("pos")
+                val = data.get("val")
                 if action:
-                    await execute_media_command(action, param=pos)
+                    await execute_media_command(action, param=pos if pos is not None else val)
             except Exception as e:
                 pass
     finally:
@@ -745,7 +760,7 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                 inp = q['path'][0].strip('"').replace('\\', '/')
                 if os.path.exists(inp):
                     # Save directly into project folder for stability
-                    outp = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'background.webm').replace('\\', '/')
+                    outp = os.path.join(APP_DIR, 'background.webm').replace('\\', '/')
                     system_state['sys_log'] = f"Converting to local storage..."
                     def do_convert(i, o):
                         import subprocess, re
@@ -828,12 +843,22 @@ def run_server():
         
 def add_to_startup():
     app_name = "SysMonitor" 
-    exe_path = sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)
+    if getattr(sys, 'frozen', False):
+        exe_path = os.path.abspath(sys.executable if hasattr(sys, 'executable') else sys.argv[0])
+    else:
+        # Use pythonw from venv or system to run silently without a console window
+        pythonw = os.path.join(os.path.dirname(sys.executable), 'pythonw.exe')
+        if not os.path.exists(pythonw):
+            pythonw = sys.executable
+        exe_path = f'"{pythonw}" "{os.path.abspath(__file__)}"'
     try:
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
         winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, exe_path); winreg.CloseKey(key)
-    except: pass
+    except Exception as e:
+        pass
 
 if __name__ == '__main__':
+    import multiprocessing
+    multiprocessing.freeze_support()
     add_to_startup()
     run_server()
